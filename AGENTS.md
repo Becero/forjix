@@ -44,6 +44,7 @@ These rules apply to the entire repository.
 - Never log passwords, tokens, connection strings, secrets, or payment-card data.
 - Negative stock is disabled by default and may only become a validated tenant setting.
 - Never update an inventory balance without generating an InventoryMovement in the same transaction.
+- A sale never updates inventory directly. Sale creation/cancellation and their inventory movements must commit in one transaction.
 
 ## Scope control
 

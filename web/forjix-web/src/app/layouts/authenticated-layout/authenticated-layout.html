@@ -7,8 +7,8 @@
       <a *ngIf="can('products.view')" routerLink="/app/products" routerLinkActive="active"><b>□</b>Produtos</a>
       <a *ngIf="can('categories.view')" routerLink="/app/categories" routerLinkActive="active"><b>◇</b>Categorias</a>
       <a *ngIf="can('stock.view')" routerLink="/app/inventory" routerLinkActive="active"><b>↕</b>Estoque</a>
-      <a class="disabled"><b>▤</b>Frente de caixa <em>Em breve</em></a>
-      <a class="disabled"><b>◷</b>Vendas <em>Em breve</em></a>
+      <a *ngIf="can('sales.create')" routerLink="/app/pos" routerLinkActive="active"><b>▤</b>Frente de caixa</a>
+      <a *ngIf="can('sales.view')" routerLink="/app/sales" routerLinkActive="active"><b>◷</b>Vendas</a>
       <a class="disabled"><b>▥</b>Relatórios <em>Em breve</em></a>
       <label>ADMINISTRAÇÃO</label>
       <a *ngIf="can('administration.users.view')" routerLink="/app/users" routerLinkActive="active"><b>♟</b>Usuários</a>

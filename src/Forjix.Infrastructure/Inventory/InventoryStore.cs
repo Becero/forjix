@@ -33,7 +33,7 @@ internal sealed class InventoryStore(TenantDbContext db) : IInventoryStore
         };
         return query.OrderBy(x => x.Product.Name).Select(x => new InventoryItem(
             x.ProductId, x.Product.Name, x.Product.Sku, x.Product.Barcode, x.Product.CategoryId,
-            x.Product.Category.Name, x.Quantity, x.Product.MinimumStock, x.Product.CostPrice,
+            x.Product.Category.Name, x.Quantity, x.Product.MinimumStock, x.Product.CostPrice, x.Product.SalePrice,
             x.Quantity < 0 ? "Negative" : x.Quantity == 0 ? "OutOfStock" : x.Quantity <= x.Product.MinimumStock ? "Low" : "Normal",
             x.Movements.OrderByDescending(m => m.CreatedAt).Select(m => (DateTimeOffset?)m.CreatedAt).FirstOrDefault(),
             Convert.ToBase64String(x.RowVersion))).ToListAsync(cancellationToken);

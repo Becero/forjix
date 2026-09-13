@@ -335,6 +335,41 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
         Assert.Equal(2, await db.InventoryMovements.CountAsync(x => x.ProductId == productId));
     }
 
+    [SqlFact]
+    public async Task SaleIsIdempotentMovesStockAndCancellationRestoresIt()
+    {
+        using var client = Client();
+        var admin = await LoginAsync(client, TenantA, AdminEmail);
+        var productId = await CreateProductAsync(client, admin.AccessToken, "SALE");
+        using var initial = await ReadJsonAsync(await AuthorizedGetAsync(client, $"/api/inventory/{productId}", admin.AccessToken));
+        var entry = await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/inventory/{productId}/movements", admin.AccessToken,
+            new { type = "StockEntry", quantity = 20, reason = "Venda", rowVersion = initial.RootElement.GetProperty("rowVersion").GetString() });
+        Assert.Equal(HttpStatusCode.OK, entry.StatusCode);
+        var key = Guid.NewGuid().ToString("N");
+        var payload = new { paymentMethod = "Pix", discount = 2, customerId = (Guid?)null, items = new[] { new { productId, quantity = 2 } } };
+        var first = await AuthorizedIdempotentJsonAsync(client, "/api/sales", admin.AccessToken, key, payload);
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        using var created = await ReadJsonAsync(first);
+        var saleId = created.RootElement.GetProperty("id").GetGuid();
+        var repeated = await AuthorizedIdempotentJsonAsync(client, "/api/sales", admin.AccessToken, key, payload);
+        Assert.Equal(HttpStatusCode.Created, repeated.StatusCode);
+        using var repeatedSale = await ReadJsonAsync(repeated);
+        Assert.Equal(saleId, repeatedSale.RootElement.GetProperty("id").GetGuid());
+
+        await using var db = CreateTenantDb(TenantA);
+        Assert.Equal(18, await db.Inventories.Where(x => x.ProductId == productId).Select(x => x.Quantity).SingleAsync());
+        Assert.Equal(1, await db.Sales.CountAsync(x => x.Id == saleId));
+        var cancel = await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/sales/{saleId}/cancel", admin.AccessToken,
+            new { reason = "Teste", rowVersion = created.RootElement.GetProperty("rowVersion").GetString() });
+        Assert.Equal(HttpStatusCode.OK, cancel.StatusCode);
+        Assert.Equal(20, await db.Inventories.Where(x => x.ProductId == productId).Select(x => x.Quantity).SingleAsync());
+        Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/sales/{saleId}/cancel", admin.AccessToken,
+            new { reason = "Novamente", rowVersion = created.RootElement.GetProperty("rowVersion").GetString() })).StatusCode);
+
+        var adminB = await LoginAsync(client, TenantB, AdminEmail);
+        Assert.Equal(HttpStatusCode.NotFound, (await AuthorizedGetAsync(client, $"/api/sales/{saleId}", adminB.AccessToken)).StatusCode);
+    }
+
     private static string Password() =>
         Environment.GetEnvironmentVariable("FORJIX_CI_ADMIN_PASSWORD")
         ?? throw new InvalidOperationException("FORJIX_CI_ADMIN_PASSWORD is required for SQL integration tests.");
@@ -423,6 +458,14 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
     {
         var request = new HttpRequestMessage(method, path) { Content = JsonContent.Create(body) };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client.SendAsync(request);
+    }
+
+    private static Task<HttpResponseMessage> AuthorizedIdempotentJsonAsync(HttpClient client, string path, string token, string key, object body)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(body) };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Add("Idempotency-Key", key);
         return client.SendAsync(request);
     }
 

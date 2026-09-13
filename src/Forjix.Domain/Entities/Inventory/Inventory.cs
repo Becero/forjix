@@ -31,8 +31,10 @@ public sealed class Inventory
         if (quantity <= 0) throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
         var delta = type switch
         {
-            InventoryMovementType.StockEntry or InventoryMovementType.PositiveAdjustment => quantity,
-            InventoryMovementType.StockExit or InventoryMovementType.NegativeAdjustment => -quantity,
+            InventoryMovementType.StockEntry or InventoryMovementType.PositiveAdjustment or
+                InventoryMovementType.SaleCancellation or InventoryMovementType.Purchase => quantity,
+            InventoryMovementType.StockExit or InventoryMovementType.NegativeAdjustment or
+                InventoryMovementType.Sale => -quantity,
             _ => throw new ArgumentOutOfRangeException(nameof(type), "Unsupported inventory movement type.")
         };
         var previous = Quantity;

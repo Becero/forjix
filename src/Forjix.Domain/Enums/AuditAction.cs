@@ -10,5 +10,7 @@ public enum AuditAction
     Logout = 5,
     RefreshTokenRevoked = 6,
     PermissionChanged = 7,
-    StockMovementCreated = 8
+    StockMovementCreated = 8,
+    SaleCreated = 9,
+    SaleCancelled = 10
 }

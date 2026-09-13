@@ -2,6 +2,7 @@ using Forjix.Domain.Entities.Audit;
 using Forjix.Domain.Entities.Catalog;
 using Forjix.Domain.Entities.Identity;
 using Forjix.Domain.Entities.Inventory;
+using Forjix.Domain.Entities.Sales;
 using Microsoft.EntityFrameworkCore;
 using InventoryEntity = Forjix.Domain.Entities.Inventory.Inventory;
 
@@ -133,6 +134,44 @@ internal static class TenantModelConfiguration
             entity.HasOne(x => x.Inventory).WithMany(x => x.Movements).HasForeignKey(x => x.InventoryId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.Product).WithMany(x => x.InventoryMovements).HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Sale>(entity =>
+        {
+            entity.ToTable("Sales");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Number).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.IdempotencyKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Subtotal).HasPrecision(18, 2);
+            entity.Property(x => x.Discount).HasPrecision(18, 2);
+            entity.Property(x => x.Total).HasPrecision(18, 2);
+            entity.Property(x => x.CancellationReason).HasMaxLength(500);
+            entity.Property(x => x.RowVersion).IsRowVersion();
+            entity.HasIndex(x => x.Number).IsUnique();
+            entity.HasIndex(x => x.IdempotencyKey).IsUnique();
+            entity.HasIndex(x => x.CreatedAt);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SaleItem>(entity =>
+        {
+            entity.ToTable("SaleItems");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ProductName).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.Sku).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Quantity).HasPrecision(18, 3);
+            entity.Property(x => x.UnitPrice).HasPrecision(18, 2);
+            entity.Property(x => x.UnitCost).HasPrecision(18, 2);
+            entity.Property(x => x.Discount).HasPrecision(18, 2);
+            entity.Property(x => x.Total).HasPrecision(18, 2);
+            entity.HasOne(x => x.Sale).WithMany(x => x.Items).HasForeignKey(x => x.SaleId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Product).WithMany(x => x.SaleItems).HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SaleSequence>(entity =>
+        {
+            entity.ToTable("SaleSequences");
+            entity.HasKey(x => x.Date);
         });
     }
 }

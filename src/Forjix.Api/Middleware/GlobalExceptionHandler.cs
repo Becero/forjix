@@ -22,6 +22,7 @@ public sealed class GlobalExceptionHandler(
         var (status, title, detail) = exception switch
         {
             RequestValidationException validation => (StatusCodes.Status400BadRequest, "Dados inválidos.", string.Join(" ", validation.Errors)),
+            PermissionDeniedException => (StatusCodes.Status403Forbidden, "Acesso negado.", exception.Message),
             ResourceNotFoundException => (StatusCodes.Status404NotFound, "Recurso não encontrado.", exception.Message),
             ResourceConflictException => (StatusCodes.Status409Conflict, "Conflito.", exception.Message),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.", (string?)null)

@@ -8,3 +8,5 @@ public sealed class RequestValidationException(params string[] errors) : Excepti
 public sealed class ResourceNotFoundException(string message) : Exception(message);
 
 public sealed class ResourceConflictException(string message) : Exception(message);
+
+public sealed class PermissionDeniedException(string message) : Exception(message);
