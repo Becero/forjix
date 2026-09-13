@@ -36,7 +36,7 @@ if (builder.Environment.IsDevelopment() &&
     await ProvisionTenantAsync(master, builder.Configuration, new TenantSeedDefinition(
         "Empresa Demo", "empresa-demo", "Forjix_EmpresaDemo", "development",
         "TenantDatabases:empresa-demo", "admin@demo.com", "Administrador Forjix",
-        password, null, false));
+        password, null, false, true));
 }
 
 if (builder.Environment.IsEnvironment("CI") &&
@@ -46,11 +46,38 @@ if (builder.Environment.IsEnvironment("CI") &&
     await ProvisionTenantAsync(master, builder.Configuration, new TenantSeedDefinition(
         "Empresa A CI", "empresa-a-ci", "Forjix_EmpresaA_CI", "ci",
         "TenantDatabases:EmpresaA_CI", "admin@teste.local", "Administrador Empresa A",
-        password, "tenant.a.marker", true));
+        password, "tenant.a.marker", true, false));
     await ProvisionTenantAsync(master, builder.Configuration, new TenantSeedDefinition(
         "Empresa B CI", "empresa-b-ci", "Forjix_EmpresaB_CI", "ci",
         "TenantDatabases:EmpresaB_CI", "admin@teste.local", "Administrador Empresa B",
-        password, "tenant.b.marker", true));
+        password, "tenant.b.marker", true, false));
+}
+
+if (builder.Environment.IsProduction() &&
+    builder.Configuration.GetValue("Forjix:HomologationProvisioning:Enabled", false))
+{
+    const string section = "Forjix:HomologationProvisioning";
+    var confirmation = builder.Configuration[$"{section}:Confirmation"];
+    if (!string.Equals(confirmation, "PROVISION_FORJIX_HOMOLOGATION", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            $"'{section}:Confirmation' must explicitly confirm the homologation provisioning operation.");
+    }
+
+    var tenantSecretReference = RequireValue(builder.Configuration, $"{section}:TenantSecretReference");
+    var password = RequirePassword(builder.Configuration, $"{section}:AdminPassword");
+    await ProvisionTenantAsync(master, builder.Configuration, new TenantSeedDefinition(
+        RequireValue(builder.Configuration, $"{section}:TenantName"),
+        RequireValue(builder.Configuration, $"{section}:TenantSlug"),
+        RequireValue(builder.Configuration, $"{section}:DatabaseName"),
+        "homologation",
+        tenantSecretReference,
+        RequireValue(builder.Configuration, $"{section}:AdminEmail"),
+        RequireValue(builder.Configuration, $"{section}:AdminName"),
+        password,
+        null,
+        false,
+        builder.Configuration.GetValue($"{section}:SeedCommercialDemo", false)));
 }
 
 var activeTenantDatabases = await master.Tenants
@@ -114,6 +141,14 @@ static string RequirePassword(IConfiguration configuration, string key)
     return !string.IsNullOrWhiteSpace(password) && password.Length >= 12
         ? password
         : throw new InvalidOperationException($"'{key}' must be externally configured with at least 12 characters.");
+}
+
+static string RequireValue(IConfiguration configuration, string key)
+{
+    var value = configuration[key]?.Trim();
+    return !string.IsNullOrWhiteSpace(value)
+        ? value
+        : throw new InvalidOperationException($"'{key}' must be externally configured.");
 }
 
 static TenantDbContext CreateTenantDbContext(string connectionString) => new(
@@ -220,7 +255,10 @@ static async Task ProvisionTenantAsync(
     await using var tenantDb = CreateTenantDbContext(tenantConnection);
     await tenantDb.Database.MigrateAsync();
     await SeedTenantIdentityAsync(tenantDb, definition, now);
-    if (definition.PlanCode == "development") await SeedCommercialDemoAsync(tenantDb, now);
+    if (definition.SeedCommercialDemo)
+    {
+        await SeedCommercialDemoAsync(tenantDb, definition.AdminEmail, now);
+    }
 }
 
 static async Task SeedTenantIdentityAsync(
@@ -340,9 +378,10 @@ static async Task SeedTenantIdentityAsync(
     await db.SaveChangesAsync();
 }
 
-static async Task SeedCommercialDemoAsync(TenantDbContext db, DateTimeOffset now)
+static async Task SeedCommercialDemoAsync(TenantDbContext db, string adminEmail, DateTimeOffset now)
 {
-    var admin = await db.Users.SingleAsync(x => x.NormalizedEmail == "ADMIN@DEMO.COM");
+    var normalizedAdminEmail = adminEmail.ToUpperInvariant();
+    var admin = await db.Users.SingleAsync(x => x.NormalizedEmail == normalizedAdminEmail);
     var categoryDefinitions = new[]
     {
         (Name: "Alimentos", Description: "Mercearia e alimentos básicos"),
@@ -430,4 +469,5 @@ internal sealed record TenantSeedDefinition(
     string AdminName,
     string Password,
     string? MarkerPermission,
-    bool AddUnprivilegedUser);
+    bool AddUnprivilegedUser,
+    bool SeedCommercialDemo);

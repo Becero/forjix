@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: forjix-homolog
+    runtime: docker
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health/live
+    autoDeployTrigger: off
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: DOTNET_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__ForjixMaster
+        sync: false
+      - key: TenantDatabases__empresa-demo
+        sync: false
+      - key: Jwt__SigningKey
+        sync: false
+      - key: Jwt__Issuer
+        value: Forjix.Api.Homologation
+      - key: Jwt__Audience
+        value: Forjix.Web.Homologation

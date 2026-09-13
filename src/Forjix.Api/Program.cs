@@ -5,9 +5,21 @@ using Forjix.Api.Middleware;
 using Forjix.Application;
 using Forjix.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var isRender = string.Equals(
+    Environment.GetEnvironmentVariable("RENDER"),
+    "true",
+    StringComparison.OrdinalIgnoreCase);
+
+if (int.TryParse(Environment.GetEnvironmentVariable("PORT"), out var renderPort) &&
+    renderPort is > 0 and <= 65535)
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{renderPort}");
+}
 
 // Visual Studio can start without applying launchSettings.json and can also debug a
 // Release build. An attached local debugger may load the developer's external secrets;
@@ -36,6 +48,19 @@ builder.Services.AddHealthChecks();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddDataProtection();
+if (isRender)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.ForwardLimit = 1;
+
+        // Render's proxy addresses are dynamic. This trust is enabled only inside a
+        // Render service, whose container port is not exposed directly to the internet.
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+}
 builder.Services.AddScoped<IRefreshTokenCookieManager, RefreshTokenCookieManager>();
 builder.Services.AddCors(options => options.AddPolicy("web", policy =>
 {
@@ -63,6 +88,11 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
+if (isRender)
+{
+    app.UseForwardedHeaders();
+}
+
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseExceptionHandler();
 app.UseSerilogRequestLogging();
@@ -72,7 +102,14 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
 app.UseHttpsRedirection();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseCors("web");
 app.UseRateLimiter();
 app.UseAuthentication();
@@ -83,6 +120,11 @@ app.MapHealthChecks("/api/health/live", new HealthCheckOptions
 {
     Predicate = _ => false
 });
+app.MapFallback("/api/{**path}", () => Results.Problem(
+    statusCode: StatusCodes.Status404NotFound,
+    title: "API endpoint not found."));
+app.MapFallback("/openapi/{**path}", () => Results.NotFound());
+app.MapFallbackToFile("index.html");
 
 app.Run();
 

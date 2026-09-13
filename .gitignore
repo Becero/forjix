@@ -6,6 +6,7 @@
 .vs/
 TestResults/
 coverage/
+artifacts/
 
 # Angular / Node
 **/node_modules/
@@ -30,4 +31,3 @@ Thumbs.db
 # Containers and local data
 data/
 *.bak
-
