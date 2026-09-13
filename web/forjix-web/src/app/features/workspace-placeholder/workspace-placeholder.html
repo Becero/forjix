@@ -1,9 +1,0 @@
-<section>
-  <p>AMBIENTE AUTENTICADO</p>
-  <h1>Bem-vindo, {{ context()?.user?.name }}</h1>
-  <span>{{ context()?.tenant?.name }}</span>
-  <h2>Permissões ativas</h2>
-  <ul>
-    @for (permission of context()?.permissions ?? []; track permission) { <li>{{ permission }}</li> }
-  </ul>
-</section>

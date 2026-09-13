@@ -223,21 +223,29 @@ static async Task SeedTenantIdentityAsync(
     TenantSeedDefinition definition,
     DateTimeOffset now)
 {
-    var permissionCodes = Permissions.All
-        .Concat(definition.MarkerPermission is null ? [] : [definition.MarkerPermission])
+    var permissionDefinitions = Permissions.Catalog
+        .Concat(definition.MarkerPermission is null
+            ? []
+            : [new Permissions.Definition(definition.MarkerPermission, definition.MarkerPermission, "CI")])
         .ToArray();
+    var permissionCodes = permissionDefinitions.Select(x => x.Code).ToArray();
     var existingPermissions = await db.Permissions.ToDictionaryAsync(x => x.Code);
-    foreach (var code in permissionCodes)
+    foreach (var permissionDefinition in permissionDefinitions)
     {
-        if (!existingPermissions.ContainsKey(code))
+        if (!existingPermissions.TryGetValue(permissionDefinition.Code, out var permission))
         {
             db.Permissions.Add(new Permission
             {
                 Id = Guid.NewGuid(),
-                Code = code,
-                Name = code,
-                Module = code.Split('.')[0]
+                Code = permissionDefinition.Code,
+                Name = permissionDefinition.Name,
+                Module = permissionDefinition.Module
             });
+        }
+        else
+        {
+            permission.Name = permissionDefinition.Name;
+            permission.Module = permissionDefinition.Module;
         }
     }
 

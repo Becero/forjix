@@ -13,6 +13,8 @@ internal sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : IC
     public Guid? TenantId => ReadGuid(ForjixClaimNames.TenantId);
     public string? TenantSlug => Principal?.FindFirstValue(ForjixClaimNames.TenantSlug);
     public bool IsAuthenticated => Principal?.Identity?.IsAuthenticated == true;
+    public string CorrelationId => httpContextAccessor.HttpContext?.TraceIdentifier ?? Guid.NewGuid().ToString("N");
+    public string? IpAddress => httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
 
     private Guid? ReadGuid(string claimType) =>
         Guid.TryParse(Principal?.FindFirstValue(claimType), out var value) ? value : null;

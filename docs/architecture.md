@@ -46,6 +46,8 @@ Explicit CORS origins and native fixed-window rate limiting protect the browser 
 
 Customer differences must use plan features, tenant feature overrides, settings and adapters/providers. Customer-specific branches and conditionals are prohibited.
 
-## Initial scope
+## Current scope
 
-This phase includes functional identity/access, both DbContexts, trusted tenancy resolution, API authentication, an authenticated Angular shell and Development provisioning. It intentionally excludes commercial modules and external provider implementations.
+The platform currently includes functional identity and access, both DbContexts, trusted tenancy resolution, API authentication, an authenticated Angular shell, user and access-group administration, audit consultation, categories and products. Every operational request resolves the tenant from the authenticated identity.
+
+Inventory movements, sales, checkout, reports, fiscal capabilities, external providers, mobile and multi-store behavior are not part of this delivery. Their menu entries are explicitly marked as future modules.

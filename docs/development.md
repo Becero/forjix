@@ -78,9 +78,10 @@ The Angular development server proxies `/api` to the HTTPS API address configure
 
 1. Open `http://localhost:4200`.
 2. Sign in with `empresa-demo` and `admin@demo.com`.
-3. Confirm that `/app` shows Empresa Demo and the five initial permissions.
-4. Reload the page; the HttpOnly refresh cookie must restore the in-memory access token.
-5. Sign out and confirm that the refresh token no longer restores the session.
+3. Confirm that `/app` shows Empresa Demo and the menus allowed by the administrator permissions.
+4. Open Users, Access groups, Audit, Categories and Products and verify the seeded catalog.
+5. Reload the page; the HttpOnly refresh cookie must restore the in-memory access token.
+6. Sign out and confirm that the refresh token no longer restores the session.
 
 ## Validation
 

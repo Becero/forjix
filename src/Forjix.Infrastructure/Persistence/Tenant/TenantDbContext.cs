@@ -1,4 +1,5 @@
 using Forjix.Domain.Entities.Audit;
+using Forjix.Domain.Entities.Catalog;
 using Forjix.Domain.Entities.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +14,8 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Category> Categories => Set<Category>();
+    public DbSet<Product> Products => Set<Product>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -20,4 +23,3 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
         TenantModelConfiguration.Configure(modelBuilder);
     }
 }
-

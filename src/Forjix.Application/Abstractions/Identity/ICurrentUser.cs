@@ -6,5 +6,6 @@ public interface ICurrentUser
     Guid? TenantId { get; }
     string? TenantSlug { get; }
     bool IsAuthenticated { get; }
+    string CorrelationId { get; }
+    string? IpAddress { get; }
 }
-

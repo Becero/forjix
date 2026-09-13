@@ -1,10 +1,24 @@
 <div class="application-layout">
   <aside>
-    <div class="brand"><span>F</span> FORJIX</div>
-    <p>{{ context()?.tenant?.name }}</p>
+    <div class="brand"><span><i></i></span> FORJIX <small>GESTÃO</small></div>
+    <p class="tenant">{{ context()?.tenant?.name }}</p>
+    <nav>
+      <a routerLink="/app" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"><b>⌂</b>Painel</a>
+      <a *ngIf="can('products.view')" routerLink="/app/products" routerLinkActive="active"><b>□</b>Produtos</a>
+      <a *ngIf="can('categories.view')" routerLink="/app/categories" routerLinkActive="active"><b>◇</b>Categorias</a>
+      <a class="disabled"><b>↕</b>Estoque <em>Em breve</em></a>
+      <a class="disabled"><b>▤</b>Frente de caixa <em>Em breve</em></a>
+      <a class="disabled"><b>◷</b>Vendas <em>Em breve</em></a>
+      <a class="disabled"><b>▥</b>Relatórios <em>Em breve</em></a>
+      <label>ADMINISTRAÇÃO</label>
+      <a *ngIf="can('administration.users.view')" routerLink="/app/users" routerLinkActive="active"><b>♟</b>Usuários</a>
+      <a *ngIf="can('administration.roles.view')" routerLink="/app/roles" routerLinkActive="active"><b>▣</b>Grupos de acesso</a>
+      <a *ngIf="can('audit.view')" routerLink="/app/audit" routerLinkActive="active"><b>≡</b>Auditoria</a>
+    </nav>
+    <footer>Forjix Consultoria<br><small>Ambiente seguro por empresa</small></footer>
   </aside>
   <section>
-    <header><span>{{ context()?.user?.name }}</span><button type="button" (click)="logout()">Sair</button></header>
+    <header><button class="menu" type="button">☰</button><div class="account"><span>{{ context()?.user?.name }}<small>{{ context()?.roles?.join(', ') }}</small></span><i>{{ context()?.user?.name?.charAt(0) }}</i><button type="button" (click)="logout()">Sair</button></div></header>
     <main><router-outlet /></main>
   </section>
 </div>

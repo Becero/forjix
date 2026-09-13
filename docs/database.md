@@ -3,7 +3,7 @@
 ## Databases
 
 - `ForjixMasterDbContext`: central platform administration.
-- `TenantDbContext`: identity, permissions, refresh tokens and audit data for one tenant.
+- `TenantDbContext`: identity, permissions, refresh tokens, audit data, categories and products for one tenant.
 
 No password is stored in `TenantDatabase`. `SecretReference` points to a secret-provider entry.
 
@@ -20,13 +20,13 @@ dotnet tool restore
 Master migration:
 
 ```powershell
-dotnet ef migrations add <Name> --context ForjixMasterDbContext --project src/Forjix.Infrastructure --startup-project src/Forjix.Api --output-dir Persistence/Master/Migrations
+dotnet ef migrations add <Name> --context ForjixMasterDbContext --project src/Forjix.Infrastructure --startup-project src/Forjix.Infrastructure --output-dir Persistence/Master/Migrations
 ```
 
 Tenant template migration:
 
 ```powershell
-dotnet ef migrations add <Name> --context TenantDbContext --project src/Forjix.Infrastructure --startup-project src/Forjix.Api --output-dir Persistence/Tenant/Migrations
+dotnet ef migrations add <Name> --context TenantDbContext --project src/Forjix.Infrastructure --startup-project src/Forjix.Infrastructure --output-dir Persistence/Tenant/Migrations
 ```
 
 ## Apply migrations and provision Development
@@ -37,7 +37,7 @@ Tenant connection strings are loaded through each `TenantDatabase.SecretReferenc
 
 The development seed is idempotent by construction: it looks up the plan, tenant, subscription, setting, permissions, role, grants, user and user-role relation by stable keys before inserting. Its real SQL Server acceptance test must execute the migrator twice and inspect both databases.
 
-The current tenant schema uses a SQL Server `rowversion` on refresh tokens so concurrent rotation attempts cannot both succeed.
+The current tenant schema uses SQL Server `rowversion` on refresh tokens and products. It prevents concurrent refresh rotation and rejects stale product updates.
 
 ## CI databases
 

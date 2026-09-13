@@ -1,4 +1,5 @@
 using Forjix.Domain.Entities.Audit;
+using Forjix.Domain.Entities.Catalog;
 using Forjix.Domain.Entities.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -79,6 +80,31 @@ internal static class TenantModelConfiguration
             entity.Property(x => x.CorrelationId).HasMaxLength(100).IsRequired();
             entity.HasIndex(x => x.OccurredAt);
             entity.HasIndex(x => x.CorrelationId);
+        });
+
+        modelBuilder.Entity<Category>(entity =>
+        {
+            entity.ToTable("Categories");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.HasIndex(x => x.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<Product>(entity =>
+        {
+            entity.ToTable("Products");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.Sku).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Barcode).HasMaxLength(80);
+            entity.Property(x => x.SalePrice).HasPrecision(18, 2);
+            entity.Property(x => x.CostPrice).HasPrecision(18, 2);
+            entity.Property(x => x.MinimumStock).HasPrecision(18, 3);
+            entity.Property(x => x.RowVersion).IsRowVersion();
+            entity.HasIndex(x => x.Sku).IsUnique();
+            entity.HasIndex(x => x.Barcode).IsUnique().HasFilter("[Barcode] IS NOT NULL");
+            entity.HasOne(x => x.Category).WithMany(x => x.Products).HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

@@ -46,7 +46,7 @@ These rules apply to the entire repository.
 
 ## Scope control
 
-- Phase 1 bootstrap must not implement Products, Inventory, Sales, Dashboard, fiscal features, payment providers, mobile, or multi-store behavior.
+- The completed Phase 1 bootstrap did not include commercial modules. The current scope adds administration, audit, categories and products only; Inventory, Sales, fiscal features, payment providers, mobile and multi-store behavior remain out of scope until explicitly requested.
 - External integrations must use internal contracts plus adapters and provider resolution; never customer-specific conditionals.
 
 ## Regression gate

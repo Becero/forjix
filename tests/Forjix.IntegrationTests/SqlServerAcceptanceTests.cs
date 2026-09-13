@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Forjix.Application.Common;
 using Forjix.Domain.Enums;
 using Forjix.Infrastructure.Persistence.Master;
 using Forjix.Infrastructure.Persistence.Tenant;
@@ -104,8 +105,8 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
 
         Assert.Equal(TenantA, me.RootElement.GetProperty("tenant").GetProperty("slug").GetString());
         Assert.Equal(AdminEmail, me.RootElement.GetProperty("user").GetProperty("email").GetString());
-        Assert.Contains("tenant.a.marker", Permissions(me));
-        Assert.DoesNotContain("tenant.b.marker", Permissions(me));
+        Assert.Contains("tenant.a.marker", PermissionCodes(me));
+        Assert.DoesNotContain("tenant.b.marker", PermissionCodes(me));
     }
 
     [SqlFact]
@@ -161,10 +162,10 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
 
         Assert.Equal("Empresa A CI", meA.RootElement.GetProperty("tenant").GetProperty("name").GetString());
         Assert.Equal("Empresa B CI", meB.RootElement.GetProperty("tenant").GetProperty("name").GetString());
-        Assert.Contains("tenant.a.marker", Permissions(meA));
-        Assert.DoesNotContain("tenant.b.marker", Permissions(meA));
-        Assert.Contains("tenant.b.marker", Permissions(meB));
-        Assert.DoesNotContain("tenant.a.marker", Permissions(meB));
+        Assert.Contains("tenant.a.marker", PermissionCodes(meA));
+        Assert.DoesNotContain("tenant.b.marker", PermissionCodes(meA));
+        Assert.Contains("tenant.b.marker", PermissionCodes(meB));
+        Assert.DoesNotContain("tenant.a.marker", PermissionCodes(meB));
     }
 
     [SqlFact]
@@ -182,11 +183,92 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
             var token = index % 2 == 0 ? sessionA.AccessToken : sessionB.AccessToken;
             var me = await GetMeAsync(client, token);
             Assert.Equal(expectedSlug, me.RootElement.GetProperty("tenant").GetProperty("slug").GetString());
-            Assert.Contains(expectedMarker, Permissions(me));
-            Assert.DoesNotContain(forbiddenMarker, Permissions(me));
+            Assert.Contains(expectedMarker, PermissionCodes(me));
+            Assert.DoesNotContain(forbiddenMarker, PermissionCodes(me));
         });
 
         await Task.WhenAll(requests);
+    }
+
+    [SqlFact]
+    public async Task UserManagementEnforcesPermissionInactiveLoginAndTenantIsolation()
+    {
+        using var client = Client();
+        var viewer = await LoginAsync(client, TenantA, ViewerEmail);
+        Assert.Equal(HttpStatusCode.Forbidden, (await AuthorizedGetAsync(client, "/api/users", viewer.AccessToken)).StatusCode);
+
+        var adminA = await LoginAsync(client, TenantA, AdminEmail);
+        var uniqueEmail = $"inactive-{Guid.NewGuid():N}@teste.local";
+        var create = await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/users", adminA.AccessToken,
+            new { name = "Usuário Inativo", email = uniqueEmail, password = Password(), isActive = false, roleIds = Array.Empty<Guid>() });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/auth/login", new { tenantSlug = TenantA, email = uniqueEmail, password = Password() })).StatusCode);
+
+        var adminB = await LoginAsync(client, TenantB, AdminEmail);
+        using var usersB = await ReadJsonAsync(await AuthorizedGetAsync(client, "/api/users", adminB.AccessToken));
+        Assert.DoesNotContain(usersB.RootElement.EnumerateArray(), x => x.GetProperty("email").GetString() == uniqueEmail);
+    }
+
+    [SqlFact]
+    public async Task RolePermissionsCanBeAssignedAndRemoved()
+    {
+        using var client = Client();
+        var admin = await LoginAsync(client, TenantA, AdminEmail);
+        var name = $"Catálogo {Guid.NewGuid():N}";
+        var create = await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/roles", admin.AccessToken,
+            new { name, description = "Teste", permissions = new[] { Permissions.ProductsView } });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        using var created = await ReadJsonAsync(create);
+        var id = created.RootElement.GetProperty("id").GetGuid();
+        Assert.Contains(Permissions.ProductsView, created.RootElement.GetProperty("permissions").EnumerateArray().Select(x => x.GetString()));
+
+        var update = await AuthorizedJsonAsync(client, HttpMethod.Put, $"/api/roles/{id}", admin.AccessToken,
+            new { name, description = "Sem permissões", permissions = Array.Empty<string>() });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        using var updated = await ReadJsonAsync(update);
+        Assert.Empty(updated.RootElement.GetProperty("permissions").EnumerateArray());
+    }
+
+    [SqlFact]
+    public async Task CategoriesRejectDuplicatesDeactivateAndRemainTenantIsolated()
+    {
+        using var client = Client();
+        var adminA = await LoginAsync(client, TenantA, AdminEmail);
+        var name = $"Categoria {Guid.NewGuid():N}";
+        var payload = new { name, description = "Teste de integração", isActive = true };
+        var create = await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/categories", adminA.AccessToken, payload);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        using var created = await ReadJsonAsync(create);
+        var id = created.RootElement.GetProperty("id").GetGuid();
+        Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/categories", adminA.AccessToken, payload)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await AuthorizedJsonAsync(client, HttpMethod.Delete, $"/api/categories/{id}", adminA.AccessToken, new { })).StatusCode);
+
+        var adminB = await LoginAsync(client, TenantB, AdminEmail);
+        using var categoriesB = await ReadJsonAsync(await AuthorizedGetAsync(client, "/api/categories", adminB.AccessToken));
+        Assert.DoesNotContain(categoriesB.RootElement.EnumerateArray(), x => x.GetProperty("name").GetString() == name);
+    }
+
+    [SqlFact]
+    public async Task ProductsValidateCategoryPricesAndSkuAndRemainTenantIsolated()
+    {
+        using var client = Client();
+        var adminA = await LoginAsync(client, TenantA, AdminEmail);
+        var categoryResponse = await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/categories", adminA.AccessToken,
+            new { name = $"Produtos {Guid.NewGuid():N}", description = "Teste", isActive = true });
+        using var category = await ReadJsonAsync(categoryResponse);
+        var categoryId = category.RootElement.GetProperty("id").GetGuid();
+        var sku = $"SKU-{Guid.NewGuid():N}";
+        object ProductPayload(Guid selectedCategory, decimal sale, decimal cost) => new { categoryId = selectedCategory, name = "Produto teste", sku, barcode = (string?)null, salePrice = sale, costPrice = cost, minimumStock = 1, isActive = true, rowVersion = (string?)null };
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/products", adminA.AccessToken, ProductPayload(Guid.NewGuid(), 10, 5))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/products", adminA.AccessToken, ProductPayload(categoryId, 0, 5))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/products", adminA.AccessToken, ProductPayload(categoryId, 10, -1))).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/products", adminA.AccessToken, ProductPayload(categoryId, 10, 5))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/products", adminA.AccessToken, ProductPayload(categoryId, 10, 5))).StatusCode);
+
+        var adminB = await LoginAsync(client, TenantB, AdminEmail);
+        using var productsB = await ReadJsonAsync(await AuthorizedGetAsync(client, "/api/products", adminB.AccessToken));
+        Assert.DoesNotContain(productsB.RootElement.EnumerateArray(), x => x.GetProperty("sku").GetString() == sku);
     }
 
     private static string Password() =>
@@ -216,11 +298,12 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
     private static async Task AssertTenantSeedCountsAsync(string slug)
     {
         await using var db = CreateTenantDb(slug);
-        Assert.Equal(2, await db.Users.CountAsync());
-        Assert.Single(await db.Roles.ToListAsync());
-        Assert.Equal(6, await db.Permissions.CountAsync());
-        Assert.Equal(6, await db.RolePermissions.CountAsync());
-        Assert.Single(await db.UserRoles.ToListAsync());
+        Assert.Equal(1, await db.Users.CountAsync(x => x.NormalizedEmail == "ADMIN@TESTE.LOCAL"));
+        Assert.Equal(1, await db.Users.CountAsync(x => x.NormalizedEmail == "VIEWER@TESTE.LOCAL"));
+        var adminRole = await db.Roles.SingleAsync(x => x.NormalizedName == "ADMINISTRADOR");
+        Assert.Equal(Permissions.All.Count + 1, await db.Permissions.CountAsync());
+        Assert.Equal(Permissions.All.Count + 1, await db.RolePermissions.CountAsync(x => x.RoleId == adminRole.Id));
+        Assert.Equal(1, await db.UserRoles.CountAsync(x => x.RoleId == adminRole.Id && x.User.NormalizedEmail == "ADMIN@TESTE.LOCAL"));
     }
 
     private static async Task<ApiSession> LoginAsync(HttpClient client, string tenantSlug, string email)
@@ -261,6 +344,19 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
         return client.SendAsync(request);
     }
 
+    private static Task<HttpResponseMessage> AuthorizedJsonAsync(HttpClient client, HttpMethod method, string path, string token, object body)
+    {
+        var request = new HttpRequestMessage(method, path) { Content = JsonContent.Create(body) };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client.SendAsync(request);
+    }
+
+    private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response)
+    {
+        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+        return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+    }
+
     private static async Task<string> AccessTokenAsync(HttpResponseMessage response)
     {
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -272,7 +368,7 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
         .Single(value => value.Contains("forjix-refresh", StringComparison.OrdinalIgnoreCase))
         .Split(';', 2)[0];
 
-    private static string[] Permissions(JsonDocument context) => context.RootElement
+    private static string[] PermissionCodes(JsonDocument context) => context.RootElement
         .GetProperty("permissions").EnumerateArray().Select(x => x.GetString()!).ToArray();
 
     private sealed record ApiSession(string AccessToken, string Cookie);

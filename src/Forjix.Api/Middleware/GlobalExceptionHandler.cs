@@ -1,3 +1,4 @@
+using Forjix.Application.Common;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,8 +19,15 @@ public sealed class GlobalExceptionHandler(
         Exception exception,
         CancellationToken cancellationToken)
     {
-        LogUnhandledException(logger, exception);
-        httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        var (status, title, detail) = exception switch
+        {
+            RequestValidationException validation => (StatusCodes.Status400BadRequest, "Dados inválidos.", string.Join(" ", validation.Errors)),
+            ResourceNotFoundException => (StatusCodes.Status404NotFound, "Recurso não encontrado.", exception.Message),
+            ResourceConflictException => (StatusCodes.Status409Conflict, "Conflito.", exception.Message),
+            _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.", (string?)null)
+        };
+        if (status == StatusCodes.Status500InternalServerError) LogUnhandledException(logger, exception);
+        httpContext.Response.StatusCode = status;
 
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {
@@ -27,9 +35,10 @@ public sealed class GlobalExceptionHandler(
             Exception = exception,
             ProblemDetails = new ProblemDetails
             {
-                Status = StatusCodes.Status500InternalServerError,
-                Title = "An unexpected error occurred.",
-                Type = "https://httpstatuses.com/500"
+                Status = status,
+                Title = title,
+                Detail = detail,
+                Type = $"https://httpstatuses.com/{status}"
             }
         });
     }
