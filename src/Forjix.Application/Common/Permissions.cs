@@ -5,6 +5,7 @@ public static class Permissions
     public sealed record Definition(string Code, string Name, string Module);
 
     public const string AdministrationUsersView = "administration.users.view";
+    public const string DashboardView = "dashboard.view";
     public const string AdministrationUsersManage = "administration.users.manage";
     public const string AdministrationRolesView = "administration.roles.view";
     public const string AdministrationRolesManage = "administration.roles.manage";
@@ -20,6 +21,7 @@ public static class Permissions
     public const string SalesCancel = "sales.cancel";
     public const string SalesDiscount = "sales.discount";
     public const string ReportsView = "reports.view";
+    public const string ReportsExport = "reports.export";
     public const string CustomersView = "customers.view";
     public const string CustomersManage = "customers.manage";
     public const string SuppliersView = "suppliers.view";
@@ -32,6 +34,7 @@ public static class Permissions
 
     public static readonly IReadOnlyList<string> All =
     [
+        DashboardView,
         AdministrationUsersView,
         AdministrationUsersManage,
         AdministrationRolesView,
@@ -47,7 +50,8 @@ public static class Permissions
         SalesCreate,
         SalesCancel,
         SalesDiscount,
-        ReportsView
+        ReportsView,
+        ReportsExport
         ,CustomersView,
         CustomersManage
         ,SuppliersView, SuppliersManage, PurchasesView, PurchasesManage, PurchasesReceive, CashView, CashManage
@@ -55,6 +59,7 @@ public static class Permissions
 
     public static readonly IReadOnlyList<Definition> Catalog =
     [
+        new(DashboardView, "Visualizar painel", "Painel"),
         new(AdministrationUsersView, "Visualizar usuários", "Administração"),
         new(AdministrationUsersManage, "Gerenciar usuários", "Administração"),
         new(AdministrationRolesView, "Visualizar grupos de acesso", "Administração"),
@@ -71,6 +76,7 @@ public static class Permissions
         new(SalesCancel, "Cancelar vendas", "Vendas"),
         new(SalesDiscount, "Conceder desconto", "Vendas"),
         new(ReportsView, "Visualizar relatórios", "Relatórios"),
+        new(ReportsExport, "Exportar relatórios", "Relatórios"),
         new(CustomersView, "Visualizar clientes", "Clientes"),
         new(CustomersManage, "Gerenciar clientes", "Clientes")
         ,new(SuppliersView, "Visualizar fornecedores", "Fornecedores"), new(SuppliersManage, "Gerenciar fornecedores", "Fornecedores"),

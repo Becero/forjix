@@ -3,7 +3,7 @@
     <div class="brand"><span><i></i></span> FORJIX <small>GESTÃO</small></div>
     <p class="tenant">{{ context()?.tenant?.name }}</p>
     <nav>
-      <a routerLink="/app" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"><b>⌂</b>Painel</a>
+      <a *ngIf="can('dashboard.view')" routerLink="/app" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"><b>⌂</b>Painel</a>
       <a *ngIf="can('products.view')" routerLink="/app/products" routerLinkActive="active"><b>□</b>Produtos</a>
       <a *ngIf="can('categories.view')" routerLink="/app/categories" routerLinkActive="active"><b>◇</b>Categorias</a>
       <a *ngIf="can('stock.view')" routerLink="/app/inventory" routerLinkActive="active"><b>↕</b>Estoque</a>
@@ -13,7 +13,7 @@
       <a *ngIf="can('suppliers.view')" routerLink="/app/suppliers" routerLinkActive="active"><b>♧</b>Fornecedores</a>
       <a *ngIf="can('purchases.view')" routerLink="/app/purchases" routerLinkActive="active"><b>▱</b>Compras</a>
       <a *ngIf="can('cash.view')" routerLink="/app/cash" routerLinkActive="active"><b>▣</b>Caixa</a>
-      <a class="disabled"><b>▥</b>Relatórios <em>Em breve</em></a>
+      <label>ANÁLISES</label><a *ngIf="can('reports.view')" routerLink="/app/reports" routerLinkActive="active"><b>▥</b>Relatórios</a>
       <label>ADMINISTRAÇÃO</label>
       <a *ngIf="can('administration.users.view')" routerLink="/app/users" routerLinkActive="active"><b>♟</b>Usuários</a>
       <a *ngIf="can('administration.roles.view')" routerLink="/app/roles" routerLinkActive="active"><b>▣</b>Grupos de acesso</a>

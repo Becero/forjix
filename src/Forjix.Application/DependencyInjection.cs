@@ -1,5 +1,6 @@
 using Forjix.Application.Abstractions.Authorization;
 using Forjix.Application.Features.Authentication;
+using Forjix.Application.Features.Analytics;
 using Forjix.Application.Features.Cash;
 using Forjix.Application.Features.Customers;
 using Forjix.Application.Features.Authorization;
@@ -23,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IPurchaseService, PurchaseService>();
         services.AddScoped<ICashService, CashService>();
+        services.AddScoped<IAnalyticsService, AnalyticsService>();
         return services;
     }
 }

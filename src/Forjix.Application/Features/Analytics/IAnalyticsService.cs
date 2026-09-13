@@ -1,0 +1,1 @@
+namespace Forjix.Application.Features.Analytics;public interface IAnalyticsService{Task<DashboardView>DashboardAsync(CancellationToken ct=default);Task<ReportView>ReportAsync(DateTimeOffset? from,DateTimeOffset? through,CancellationToken ct=default);Task<ExportedReport>ExportAsync(DateTimeOffset? from,DateTimeOffset? through,string format,CancellationToken ct=default);}

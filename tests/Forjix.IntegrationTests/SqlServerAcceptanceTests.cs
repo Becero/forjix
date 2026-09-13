@@ -387,6 +387,18 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
     }
 
     [SqlFact]
+    public async Task DashboardReportsAndExportsUseTenantData()
+    {
+        using var client=Client();var admin=await LoginAsync(client,TenantA,AdminEmail);await EnsureCashClosedAsync(client,admin.AccessToken);Assert.Equal(HttpStatusCode.Created,(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/cash/open",admin.AccessToken,new{openingAmount=0})).StatusCode);
+        var from=Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(-1).ToString("O",CultureInfo.InvariantCulture));var through=Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(1).ToString("O",CultureInfo.InvariantCulture));using var before=await ReadJsonAsync(await AuthorizedGetAsync(client,$"/api/reports?from={from}&through={through}",admin.AccessToken));var revenue=before.RootElement.GetProperty("revenue").GetDecimal();var count=before.RootElement.GetProperty("saleCount").GetInt32();
+        var productId=await CreateProductAsync(client,admin.AccessToken,"REP");using var stock=await ReadJsonAsync(await AuthorizedGetAsync(client,$"/api/inventory/{productId}",admin.AccessToken));Assert.Equal(HttpStatusCode.OK,(await AuthorizedJsonAsync(client,HttpMethod.Post,$"/api/inventory/{productId}/movements",admin.AccessToken,new{type="StockEntry",quantity=5,reason="Relatório",rowVersion=stock.RootElement.GetProperty("rowVersion").GetString()})).StatusCode);
+        var sale=await AuthorizedIdempotentJsonAsync(client,"/api/sales",admin.AccessToken,Guid.NewGuid().ToString("N"),new{paymentMethod="Cash",discount=0,customerId=(Guid?)null,items=new[]{new{productId,quantity=2}}});Assert.Equal(HttpStatusCode.Created,sale.StatusCode);
+        using var after=await ReadJsonAsync(await AuthorizedGetAsync(client,$"/api/reports?from={from}&through={through}",admin.AccessToken));Assert.Equal(revenue+20,after.RootElement.GetProperty("revenue").GetDecimal());Assert.Equal(count+1,after.RootElement.GetProperty("saleCount").GetInt32());using var dashboard=await ReadJsonAsync(await AuthorizedGetAsync(client,"/api/dashboard",admin.AccessToken));Assert.True(dashboard.RootElement.GetProperty("saleCountToday").GetInt32()>0);
+        using var excel=await AuthorizedGetAsync(client,$"/api/reports/export?from={from}&through={through}&format=excel",admin.AccessToken);Assert.Equal(HttpStatusCode.OK,excel.StatusCode);Assert.Contains("ms-excel",excel.Content.Headers.ContentType?.MediaType,StringComparison.OrdinalIgnoreCase);
+        using var pdf=await AuthorizedGetAsync(client,$"/api/reports/export?from={from}&through={through}&format=pdf",admin.AccessToken);Assert.Equal("%PDF",(await pdf.Content.ReadAsStringAsync())[..4]);await EnsureCashClosedAsync(client,admin.AccessToken);
+    }
+
+    [SqlFact]
     public async Task CustomersSupportCrudAndRemainTenantIsolated()
     {
         using var client = Client(); var adminA = await LoginAsync(client, TenantA, AdminEmail);

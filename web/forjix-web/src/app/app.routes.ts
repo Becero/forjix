@@ -13,7 +13,7 @@ export const routes: Routes = [
     loadComponent: () => import('./layouts/authenticated-layout/authenticated-layout').then((module) => module.AuthenticatedLayout),
     children: [
       {
-        path: '',
+        path: '', canActivate: [permissionGuard], data: { permission: 'dashboard.view' },
         loadComponent: () => import('./features/dashboard/dashboard').then(module => module.Dashboard)
       },
       { path: 'products', canActivate: [permissionGuard], data: { permission: 'products.view' }, loadComponent: () => import('./features/products/products').then(module => module.Products) },
@@ -25,6 +25,7 @@ export const routes: Routes = [
       { path: 'suppliers', canActivate: [permissionGuard], data: { permission: 'suppliers.view' }, loadComponent: () => import('./features/suppliers/suppliers').then(module => module.Suppliers) },
       { path: 'purchases', canActivate: [permissionGuard], data: { permission: 'purchases.view' }, loadComponent: () => import('./features/purchases/purchases').then(module => module.Purchases) },
       { path: 'cash', canActivate: [permissionGuard], data: { permission: 'cash.view' }, loadComponent: () => import('./features/cash/cash').then(module => module.Cash) },
+      { path: 'reports', canActivate: [permissionGuard], data: { permission: 'reports.view' }, loadComponent: () => import('./features/reports/reports').then(module => module.Reports) },
       { path: 'users', canActivate: [permissionGuard], data: { permission: 'administration.users.view' }, loadComponent: () => import('./features/users/users').then(module => module.Users) },
       { path: 'roles', canActivate: [permissionGuard], data: { permission: 'administration.roles.view' }, loadComponent: () => import('./features/roles/roles').then(module => module.Roles) },
       { path: 'audit', canActivate: [permissionGuard], data: { permission: 'audit.view' }, loadComponent: () => import('./features/audit/audit').then(module => module.Audit) },
