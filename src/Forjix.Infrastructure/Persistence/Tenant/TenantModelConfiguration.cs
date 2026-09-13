@@ -1,7 +1,9 @@
 using Forjix.Domain.Entities.Audit;
 using Forjix.Domain.Entities.Catalog;
 using Forjix.Domain.Entities.Identity;
+using Forjix.Domain.Entities.Inventory;
 using Microsoft.EntityFrameworkCore;
+using InventoryEntity = Forjix.Domain.Entities.Inventory.Inventory;
 
 namespace Forjix.Infrastructure.Persistence.Tenant;
 
@@ -105,6 +107,32 @@ internal static class TenantModelConfiguration
             entity.HasIndex(x => x.Sku).IsUnique();
             entity.HasIndex(x => x.Barcode).IsUnique().HasFilter("[Barcode] IS NOT NULL");
             entity.HasOne(x => x.Category).WithMany(x => x.Products).HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<InventoryEntity>(entity =>
+        {
+            entity.ToTable("Inventories");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Quantity).HasPrecision(18, 3);
+            entity.Property(x => x.RowVersion).IsRowVersion();
+            entity.HasIndex(x => x.ProductId).IsUnique();
+            entity.HasOne(x => x.Product).WithOne(x => x.Inventory).HasForeignKey<InventoryEntity>(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<InventoryMovement>(entity =>
+        {
+            entity.ToTable("InventoryMovements");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Quantity).HasPrecision(18, 3);
+            entity.Property(x => x.PreviousQuantity).HasPrecision(18, 3);
+            entity.Property(x => x.NewQuantity).HasPrecision(18, 3);
+            entity.Property(x => x.Reason).HasMaxLength(500);
+            entity.Property(x => x.ReferenceType).HasMaxLength(80);
+            entity.Property(x => x.ReferenceId).HasMaxLength(100);
+            entity.HasIndex(x => new { x.ProductId, x.CreatedAt });
+            entity.HasOne(x => x.Inventory).WithMany(x => x.Movements).HasForeignKey(x => x.InventoryId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Product).WithMany(x => x.InventoryMovements).HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

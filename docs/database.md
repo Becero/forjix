@@ -3,7 +3,7 @@
 ## Databases
 
 - `ForjixMasterDbContext`: central platform administration.
-- `TenantDbContext`: identity, permissions, refresh tokens, audit data, categories and products for one tenant.
+- `TenantDbContext`: identity, permissions, refresh tokens, audit data, categories, products, inventory and stock movements for one tenant.
 
 No password is stored in `TenantDatabase`. `SecretReference` points to a secret-provider entry.
 
@@ -37,7 +37,7 @@ Tenant connection strings are loaded through each `TenantDatabase.SecretReferenc
 
 The development seed is idempotent by construction: it looks up the plan, tenant, subscription, setting, permissions, role, grants, user and user-role relation by stable keys before inserting. Its real SQL Server acceptance test must execute the migrator twice and inspect both databases.
 
-The current tenant schema uses SQL Server `rowversion` on refresh tokens and products. It prevents concurrent refresh rotation and rejects stale product updates.
+The current tenant schema uses SQL Server `rowversion` on refresh tokens, products and inventory. It prevents concurrent refresh rotation, rejects stale product updates and ensures simultaneous stock movements cannot silently overwrite a balance.
 
 ## CI databases
 

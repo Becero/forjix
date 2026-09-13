@@ -271,9 +271,84 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
         Assert.DoesNotContain(productsB.RootElement.EnumerateArray(), x => x.GetProperty("sku").GetString() == sku);
     }
 
+    [SqlFact]
+    public async Task InventoryIsCreatedMovesAtomicallyAndRemainsTenantIsolated()
+    {
+        using var client = Client();
+        var adminA = await LoginAsync(client, TenantA, AdminEmail);
+        var productId = await CreateProductAsync(client, adminA.AccessToken, "INV");
+
+        using var initial = await ReadJsonAsync(await AuthorizedGetAsync(client, $"/api/inventory/{productId}", adminA.AccessToken));
+        Assert.Equal(0, initial.RootElement.GetProperty("quantity").GetDecimal());
+        var initialVersion = initial.RootElement.GetProperty("rowVersion").GetString();
+        Assert.Equal(HttpStatusCode.BadRequest, (await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/inventory/{productId}/movements", adminA.AccessToken,
+            new { type = "StockEntry", quantity = 0, reason = "Inválido", rowVersion = initialVersion })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/inventory/{productId}/movements", adminA.AccessToken,
+            new { type = "PositiveAdjustment", quantity = 1, reason = (string?)null, rowVersion = initialVersion })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await AuthorizedGetAsync(client, $"/api/inventory/{Guid.NewGuid()}", adminA.AccessToken)).StatusCode);
+
+        var entry = await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/inventory/{productId}/movements", adminA.AccessToken,
+            new { type = "StockEntry", quantity = 10, reason = "Estoque inicial", rowVersion = initialVersion });
+        Assert.Equal(HttpStatusCode.OK, entry.StatusCode);
+        using var entryResult = await ReadJsonAsync(entry);
+        var currentVersion = entryResult.RootElement.GetProperty("inventory").GetProperty("rowVersion").GetString();
+
+        await using var dbA = CreateTenantDb(TenantA);
+        Assert.Equal(10, await dbA.Inventories.Where(x => x.ProductId == productId).Select(x => x.Quantity).SingleAsync());
+        Assert.Equal(1, await dbA.InventoryMovements.CountAsync(x => x.ProductId == productId));
+        var failed = await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/inventory/{productId}/movements", adminA.AccessToken,
+            new { type = "StockExit", quantity = 11, reason = "Deve falhar", rowVersion = currentVersion });
+        Assert.Equal(HttpStatusCode.BadRequest, failed.StatusCode);
+        Assert.Equal(10, await dbA.Inventories.Where(x => x.ProductId == productId).Select(x => x.Quantity).SingleAsync());
+        Assert.Equal(1, await dbA.InventoryMovements.CountAsync(x => x.ProductId == productId));
+        Assert.Equal(1, await dbA.AuditLogs.CountAsync(x => x.EntityName == "InventoryMovement" && x.EntityId == productId.ToString()));
+
+        var adminB = await LoginAsync(client, TenantB, AdminEmail);
+        Assert.Equal(HttpStatusCode.NotFound, (await AuthorizedGetAsync(client, $"/api/inventory/{productId}", adminB.AccessToken)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await AuthorizedJsonAsync(client, HttpMethod.Delete, $"/api/products/{productId}", adminA.AccessToken, new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/inventory/{productId}/movements", adminA.AccessToken,
+            new { type = "StockEntry", quantity = 1, reason = "Produto inativo", rowVersion = currentVersion })).StatusCode);
+    }
+
+    [SqlFact]
+    public async Task ConcurrentStockExitsNeverProduceNegativeBalance()
+    {
+        using var client = Client();
+        var admin = await LoginAsync(client, TenantA, AdminEmail);
+        var productId = await CreateProductAsync(client, admin.AccessToken, "CON");
+        using var initial = await ReadJsonAsync(await AuthorizedGetAsync(client, $"/api/inventory/{productId}", admin.AccessToken));
+        var initialVersion = initial.RootElement.GetProperty("rowVersion").GetString();
+        var entry = await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/inventory/{productId}/movements", admin.AccessToken,
+            new { type = "StockEntry", quantity = 1, reason = "Concorrência", rowVersion = initialVersion });
+        using var entryResult = await ReadJsonAsync(entry);
+        var currentVersion = entryResult.RootElement.GetProperty("inventory").GetProperty("rowVersion").GetString();
+
+        var exits = await Task.WhenAll(
+            AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/inventory/{productId}/movements", admin.AccessToken, new { type = "StockExit", quantity = 1, reason = "A", rowVersion = currentVersion }),
+            AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/inventory/{productId}/movements", admin.AccessToken, new { type = "StockExit", quantity = 1, reason = "B", rowVersion = currentVersion }));
+
+        Assert.Single(exits, x => x.StatusCode == HttpStatusCode.OK);
+        Assert.Single(exits, x => x.StatusCode == HttpStatusCode.Conflict);
+        await using var db = CreateTenantDb(TenantA);
+        Assert.Equal(0, await db.Inventories.Where(x => x.ProductId == productId).Select(x => x.Quantity).SingleAsync());
+        Assert.Equal(2, await db.InventoryMovements.CountAsync(x => x.ProductId == productId));
+    }
+
     private static string Password() =>
         Environment.GetEnvironmentVariable("FORJIX_CI_ADMIN_PASSWORD")
         ?? throw new InvalidOperationException("FORJIX_CI_ADMIN_PASSWORD is required for SQL integration tests.");
+
+    private static async Task<Guid> CreateProductAsync(HttpClient client, string token, string prefix)
+    {
+        var categoryResponse = await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/categories", token,
+            new { name = $"{prefix} {Guid.NewGuid():N}", description = "Estoque", isActive = true });
+        using var category = await ReadJsonAsync(categoryResponse);
+        var productResponse = await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/products", token,
+            new { categoryId = category.RootElement.GetProperty("id").GetGuid(), name = $"Produto {prefix}", sku = $"{prefix}-{Guid.NewGuid():N}", barcode = (string?)null, salePrice = 10, costPrice = 4, minimumStock = 2, isActive = true, rowVersion = (string?)null });
+        using var product = await ReadJsonAsync(productResponse);
+        return product.RootElement.GetProperty("id").GetGuid();
+    }
 
     private HttpClient Client() => factory.CreateClient(new()
     {

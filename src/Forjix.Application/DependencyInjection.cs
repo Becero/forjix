@@ -1,6 +1,7 @@
 using Forjix.Application.Abstractions.Authorization;
 using Forjix.Application.Features.Authentication;
 using Forjix.Application.Features.Authorization;
+using Forjix.Application.Features.Inventory;
 using Forjix.Application.Features.Management;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,6 +14,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IPermissionChecker, PermissionChecker>();
         services.AddScoped<IManagementService, ManagementService>();
+        services.AddScoped<IInventoryService, InventoryService>();
         return services;
     }
 }

@@ -9,5 +9,6 @@ public enum AuditAction
     LoginFailed = 4,
     Logout = 5,
     RefreshTokenRevoked = 6,
-    PermissionChanged = 7
+    PermissionChanged = 7,
+    StockMovementCreated = 8
 }

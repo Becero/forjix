@@ -8,6 +8,7 @@ using Forjix.Domain.Entities.Audit;
 using Forjix.Domain.Entities.Catalog;
 using Forjix.Domain.Entities.Identity;
 using Forjix.Domain.Enums;
+using InventoryEntity = Forjix.Domain.Entities.Inventory.Inventory;
 
 namespace Forjix.Application.Features.Management;
 
@@ -232,6 +233,8 @@ internal sealed class ManagementService(
         if (id is null)
         {
             var product = new Product { Id = Guid.NewGuid(), CategoryId = request.CategoryId, Name = name, Sku = sku, Barcode = barcode, SalePrice = request.SalePrice, CostPrice = request.CostPrice, MinimumStock = request.MinimumStock, IsActive = request.IsActive, CreatedAt = now, UpdatedAt = now };
+            product.Inventory = InventoryEntity.Create(product.Id, now);
+            product.Inventory.Product = product;
             await store.AddProductAsync(product, Audit(AuditAction.Created, nameof(Product), product.Id, SafeProduct(product)), cancellationToken);
             return MapProduct(product);
         }

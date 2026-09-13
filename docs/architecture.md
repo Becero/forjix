@@ -48,6 +48,6 @@ Customer differences must use plan features, tenant feature overrides, settings 
 
 ## Current scope
 
-The platform currently includes functional identity and access, both DbContexts, trusted tenancy resolution, API authentication, an authenticated Angular shell, user and access-group administration, audit consultation, categories and products. Every operational request resolves the tenant from the authenticated identity.
+The platform currently includes functional identity and access, both DbContexts, trusted tenancy resolution, API authentication, an authenticated Angular shell, user and access-group administration, audit consultation, categories, products, inventory and atomic stock movements. Every operational request resolves the tenant from the authenticated identity.
 
-Inventory movements, sales, checkout, reports, fiscal capabilities, external providers, mobile and multi-store behavior are not part of this delivery. Their menu entries are explicitly marked as future modules.
+Sales, checkout, payments, commercial reports, fiscal capabilities, external providers, mobile and multi-store behavior are not part of this delivery. Their menu entries are explicitly marked as future modules.
