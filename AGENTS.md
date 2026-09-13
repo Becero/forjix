@@ -48,3 +48,8 @@ These rules apply to the entire repository.
 
 - Phase 1 bootstrap must not implement Products, Inventory, Sales, Dashboard, fiscal features, payment providers, mobile, or multi-store behavior.
 - External integrations must use internal contracts plus adapters and provider resolution; never customer-specific conditionals.
+
+## Regression gate
+
+- Every change involving tenancy, authentication, migrations, permissions, or database connections must keep the real SQL Server multi-tenant integration suite passing.
+- Do not replace physical tenant-database isolation tests with mocks or an in-memory provider.

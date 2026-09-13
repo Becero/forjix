@@ -38,3 +38,15 @@ Tenant connection strings are loaded through each `TenantDatabase.SecretReferenc
 The development seed is idempotent by construction: it looks up the plan, tenant, subscription, setting, permissions, role, grants, user and user-role relation by stable keys before inserting. Its real SQL Server acceptance test must execute the migrator twice and inspect both databases.
 
 The current tenant schema uses a SQL Server `rowversion` on refresh tokens so concurrent rotation attempts cannot both succeed.
+
+## CI databases
+
+CI uses only these disposable names:
+
+- `ForjixMaster_CI`
+- `Forjix_EmpresaA_CI`
+- `Forjix_EmpresaB_CI`
+
+The CI-only seed is enabled only when `DOTNET_ENVIRONMENT=CI` and `Forjix:IntegrationSeed:Enabled=true`. It provisions `empresa-a-ci` and `empresa-b-ci`, stores only their secret-reference keys in Master, migrates each physical tenant database and seeds equivalent users. The migrator is executed twice before acceptance tests; assertions over Master and both tenant databases prove migrations and idempotence.
+
+User Secrets are loaded by the migrator only in Development. This prevents a developer's local secrets from overriding explicitly isolated CI connection strings.

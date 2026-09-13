@@ -10,7 +10,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.Configuration.AddUserSecrets<Program>(optional: true);
+if (builder.Environment.IsDevelopment())
+{
+    builder.Configuration.AddUserSecrets<Program>(optional: true);
+}
 
 var masterConnection = builder.Configuration.GetConnectionString("ForjixMaster");
 if (string.IsNullOrWhiteSpace(masterConnection))
@@ -25,7 +28,25 @@ await master.Database.MigrateAsync();
 if (builder.Environment.IsDevelopment() &&
     builder.Configuration.GetValue("Forjix:DevelopmentSeed:Enabled", false))
 {
-    await ProvisionDemoAsync(master, builder.Configuration);
+    var password = RequirePassword(builder.Configuration, "Forjix:DevelopmentSeed:AdminPassword");
+    await ProvisionTenantAsync(master, builder.Configuration, new TenantSeedDefinition(
+        "Empresa Demo", "empresa-demo", "Forjix_EmpresaDemo", "development",
+        "TenantDatabases:empresa-demo", "admin@demo.com", "Administrador Forjix",
+        password, null, false));
+}
+
+if (builder.Environment.IsEnvironment("CI") &&
+    builder.Configuration.GetValue("Forjix:IntegrationSeed:Enabled", false))
+{
+    var password = RequirePassword(builder.Configuration, "Forjix:IntegrationSeed:AdminPassword");
+    await ProvisionTenantAsync(master, builder.Configuration, new TenantSeedDefinition(
+        "Empresa A CI", "empresa-a-ci", "Forjix_EmpresaA_CI", "ci",
+        "TenantDatabases:EmpresaA_CI", "admin@teste.local", "Administrador Empresa A",
+        password, "tenant.a.marker", true));
+    await ProvisionTenantAsync(master, builder.Configuration, new TenantSeedDefinition(
+        "Empresa B CI", "empresa-b-ci", "Forjix_EmpresaB_CI", "ci",
+        "TenantDatabases:EmpresaB_CI", "admin@teste.local", "Administrador Empresa B",
+        password, "tenant.b.marker", true));
 }
 
 var activeTenantDatabases = await master.Tenants
@@ -83,44 +104,54 @@ if (failures > 0)
     Environment.ExitCode = 1;
 }
 
+static string RequirePassword(IConfiguration configuration, string key)
+{
+    var password = configuration[key];
+    return !string.IsNullOrWhiteSpace(password) && password.Length >= 12
+        ? password
+        : throw new InvalidOperationException($"'{key}' must be externally configured with at least 12 characters.");
+}
+
 static TenantDbContext CreateTenantDbContext(string connectionString) => new(
     new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(connectionString).Options);
 
-static async Task ProvisionDemoAsync(ForjixMasterDbContext master, IConfiguration configuration)
+static async Task ProvisionTenantAsync(
+    ForjixMasterDbContext master,
+    IConfiguration configuration,
+    TenantSeedDefinition definition)
 {
-    const string slug = "empresa-demo";
-    const string tenantSecretReference = "TenantDatabases:empresa-demo";
-    var now = DateTimeOffset.UtcNow;
-    var password = configuration["Forjix:DevelopmentSeed:AdminPassword"];
-    var tenantConnection = configuration[tenantSecretReference];
-
-    if (string.IsNullOrWhiteSpace(password) || password.Length < 12)
-    {
-        throw new InvalidOperationException("Development seed password must be externally configured with at least 12 characters.");
-    }
-
+    var tenantConnection = configuration[definition.SecretReference];
     if (string.IsNullOrWhiteSpace(tenantConnection))
     {
-        throw new InvalidOperationException($"Configure '{tenantSecretReference}' outside source control.");
+        throw new InvalidOperationException($"Configure '{definition.SecretReference}' outside source control.");
     }
 
-    var plan = await master.Plans.SingleOrDefaultAsync(x => x.Code == "development");
+    var now = DateTimeOffset.UtcNow;
+    var plan = await master.Plans.SingleOrDefaultAsync(x => x.Code == definition.PlanCode);
     if (plan is null)
     {
-        plan = new Plan { Id = Guid.NewGuid(), Code = "development", Name = "Development", IsActive = true, CreatedAt = now, UpdatedAt = now };
+        plan = new Plan
+        {
+            Id = Guid.NewGuid(),
+            Code = definition.PlanCode,
+            Name = definition.PlanCode.ToUpperInvariant(),
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
         master.Plans.Add(plan);
     }
 
     var tenant = await master.Tenants
         .Include(x => x.Database).Include(x => x.Subscriptions).Include(x => x.Settings)
-        .SingleOrDefaultAsync(x => x.Slug == slug);
+        .SingleOrDefaultAsync(x => x.Slug == definition.Slug);
     if (tenant is null)
     {
         tenant = new Tenant
         {
             Id = Guid.NewGuid(),
-            Name = "Empresa Demo",
-            Slug = slug,
+            Name = definition.Name,
+            Slug = definition.Slug,
             Status = TenantStatus.Active,
             Plan = plan,
             CreatedAt = now,
@@ -129,7 +160,7 @@ static async Task ProvisionDemoAsync(ForjixMasterDbContext master, IConfiguratio
         master.Tenants.Add(tenant);
     }
 
-    tenant.Name = "Empresa Demo";
+    tenant.Name = definition.Name;
     tenant.Status = TenantStatus.Active;
     tenant.Plan = plan;
     tenant.UpdatedAt = now;
@@ -137,13 +168,17 @@ static async Task ProvisionDemoAsync(ForjixMasterDbContext master, IConfiguratio
     {
         Id = Guid.NewGuid(),
         Tenant = tenant,
-        DatabaseName = "Forjix_EmpresaDemo",
-        ServerReference = "development",
-        SecretReference = tenantSecretReference,
+        DatabaseName = definition.DatabaseName,
+        ServerReference = definition.PlanCode,
+        SecretReference = definition.SecretReference,
         SchemaVersion = "pending",
         CreatedAt = now,
         UpdatedAt = now
     };
+    tenant.Database.DatabaseName = definition.DatabaseName;
+    tenant.Database.SecretReference = definition.SecretReference;
+    tenant.Database.UpdatedAt = now;
+
     if (!tenant.Subscriptions.Any(x => x.Status == SubscriptionStatus.Active && x.EndsAt is null))
     {
         tenant.Subscriptions.Add(new Subscription
@@ -180,13 +215,19 @@ static async Task ProvisionDemoAsync(ForjixMasterDbContext master, IConfiguratio
 
     await using var tenantDb = CreateTenantDbContext(tenantConnection);
     await tenantDb.Database.MigrateAsync();
-    await SeedTenantIdentityAsync(tenantDb, password, now);
+    await SeedTenantIdentityAsync(tenantDb, definition, now);
 }
 
-static async Task SeedTenantIdentityAsync(TenantDbContext db, string password, DateTimeOffset now)
+static async Task SeedTenantIdentityAsync(
+    TenantDbContext db,
+    TenantSeedDefinition definition,
+    DateTimeOffset now)
 {
+    var permissionCodes = Permissions.All
+        .Concat(definition.MarkerPermission is null ? [] : [definition.MarkerPermission])
+        .ToArray();
     var existingPermissions = await db.Permissions.ToDictionaryAsync(x => x.Code);
-    foreach (var code in Permissions.All)
+    foreach (var code in permissionCodes)
     {
         if (!existingPermissions.ContainsKey(code))
         {
@@ -218,22 +259,25 @@ static async Task SeedTenantIdentityAsync(TenantDbContext db, string password, D
         await db.SaveChangesAsync();
     }
 
-    var permissionIds = await db.Permissions.Where(x => Permissions.All.Contains(x.Code)).Select(x => x.Id).ToListAsync();
-    var assignedPermissionIds = await db.RolePermissions.Where(x => x.RoleId == role.Id).Select(x => x.PermissionId).ToListAsync();
+    var permissionIds = await db.Permissions
+        .Where(x => permissionCodes.Contains(x.Code)).Select(x => x.Id).ToListAsync();
+    var assignedPermissionIds = await db.RolePermissions
+        .Where(x => x.RoleId == role.Id).Select(x => x.PermissionId).ToListAsync();
     foreach (var permissionId in permissionIds.Except(assignedPermissionIds))
     {
         db.RolePermissions.Add(new RolePermission { RoleId = role.Id, PermissionId = permissionId, GrantedAt = now });
     }
 
-    var user = await db.Users.SingleOrDefaultAsync(x => x.NormalizedEmail == "ADMIN@DEMO.COM");
+    var normalizedEmail = definition.AdminEmail.ToUpperInvariant();
+    var user = await db.Users.SingleOrDefaultAsync(x => x.NormalizedEmail == normalizedEmail);
     if (user is null)
     {
         user = new User
         {
             Id = Guid.NewGuid(),
-            Name = "Administrador Forjix",
-            Email = "admin@demo.com",
-            NormalizedEmail = "ADMIN@DEMO.COM",
+            Name = definition.AdminName,
+            Email = definition.AdminEmail,
+            NormalizedEmail = normalizedEmail,
             PasswordHash = string.Empty,
             IsActive = true,
             CreatedAt = now,
@@ -242,11 +286,11 @@ static async Task SeedTenantIdentityAsync(TenantDbContext db, string password, D
         db.Users.Add(user);
     }
 
-    user.Name = "Administrador Forjix";
-    user.Email = "admin@demo.com";
+    user.Name = definition.AdminName;
+    user.Email = definition.AdminEmail;
     user.IsActive = true;
     user.LockedUntil = null;
-    user.PasswordHash = new PasswordHasher<User>().HashPassword(user, password);
+    user.PasswordHash = new PasswordHasher<User>().HashPassword(user, definition.Password);
     user.SecurityStamp = Guid.NewGuid();
     user.UpdatedAt = now;
 
@@ -255,5 +299,42 @@ static async Task SeedTenantIdentityAsync(TenantDbContext db, string password, D
         db.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = role.Id, AssignedAt = now });
     }
 
+    if (definition.AddUnprivilegedUser)
+    {
+        const string viewerEmail = "viewer@teste.local";
+        var viewer = await db.Users.SingleOrDefaultAsync(x => x.NormalizedEmail == "VIEWER@TESTE.LOCAL");
+        if (viewer is null)
+        {
+            viewer = new User
+            {
+                Id = Guid.NewGuid(),
+                Name = "Usuário sem permissão",
+                Email = viewerEmail,
+                NormalizedEmail = "VIEWER@TESTE.LOCAL",
+                PasswordHash = string.Empty,
+                IsActive = true,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            db.Users.Add(viewer);
+        }
+
+        viewer.PasswordHash = new PasswordHasher<User>().HashPassword(viewer, definition.Password);
+        viewer.SecurityStamp = Guid.NewGuid();
+        viewer.UpdatedAt = now;
+    }
+
     await db.SaveChangesAsync();
 }
+
+internal sealed record TenantSeedDefinition(
+    string Name,
+    string Slug,
+    string DatabaseName,
+    string PlanCode,
+    string SecretReference,
+    string AdminEmail,
+    string AdminName,
+    string Password,
+    string? MarkerPermission,
+    bool AddUnprivilegedUser);

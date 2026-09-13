@@ -68,7 +68,7 @@ dotnet run --project src/Forjix.Api
 
 ```powershell
 cd web/forjix-web
-npm install
+npm ci
 npm start
 ```
 
@@ -85,7 +85,10 @@ The Angular development server proxies `/api` to the HTTPS API address configure
 ## Validation
 
 ```powershell
+dotnet restore
+dotnet build --no-restore
 dotnet test
+npm ci --prefix web/forjix-web
 npm run build --prefix web/forjix-web
 ```
 
@@ -95,4 +98,6 @@ Docker validation additionally requires Docker Desktop:
 docker compose config
 ```
 
-If Docker/SQL Server is unavailable, unit and HTTP-boundary tests still run, but database provisioning, seed idempotence and the complete login/refresh/logout smoke test remain pending. Do not treat an in-memory provider as evidence of physical database isolation.
+Without `FORJIX_RUN_SQL_TESTS=true`, the external SQL acceptance tests remain explicitly skipped while unit and HTTP-boundary tests run normally. They are mandatory in CI and must not be unconditionally enabled against an unknown database.
+
+For the complete CI-equivalent flow, including isolated environment variables and two migrator executions, follow [ci.md](ci.md). On Windows, LocalDB is convenient for local verification. Docker matches the Linux CI engine more closely. Neither may point to development or production databases.

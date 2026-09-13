@@ -38,12 +38,14 @@ builder.Services.AddCors(options => options.AddPolicy("web", policy =>
 }));
 builder.Services.AddRateLimiter(options =>
 {
+    var authenticationPermitLimit = Math.Clamp(
+        builder.Configuration.GetValue("RateLimiting:AuthenticationPermitLimit", 10), 1, 1000);
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("authentication", httpContext => RateLimitPartition.GetFixedWindowLimiter(
         httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions
         {
-            PermitLimit = 10,
+            PermitLimit = authenticationPermitLimit,
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
             AutoReplenishment = true
