@@ -5,8 +5,9 @@ public enum AuditAction
     Created = 0,
     Updated = 1,
     Deleted = 2,
-    Login = 3,
-    Logout = 4,
-    PermissionChanged = 5
+    LoginSucceeded = 3,
+    LoginFailed = 4,
+    Logout = 5,
+    RefreshTokenRevoked = 6,
+    PermissionChanged = 7
 }
-

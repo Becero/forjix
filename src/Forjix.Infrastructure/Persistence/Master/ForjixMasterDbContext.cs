@@ -12,6 +12,7 @@ public sealed class ForjixMasterDbContext(DbContextOptions<ForjixMasterDbContext
     public DbSet<TenantDatabase> TenantDatabases => Set<TenantDatabase>();
     public DbSet<TenantSetting> TenantSettings => Set<TenantSetting>();
     public DbSet<TenantFeature> TenantFeatures => Set<TenantFeature>();
+    public DbSet<MigrationExecution> MigrationExecutions => Set<MigrationExecution>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -17,6 +17,15 @@ These rules apply to the entire repository.
 - A client request must never choose an arbitrary TenantId, database name, server, or connection string.
 - Resolve the tenant through the authenticated identity or the validated login slug/subdomain flow.
 - Store only secret references in `ForjixMaster`; never store database passwords in plaintext.
+- Only login may resolve an active tenant by slug. Authenticated flows must derive tenant identity from validated JWT claims.
+- Create a tenant DbContext per operation after resolution; never mutate a shared DbContext connection string.
+
+## Identity and secrets
+
+- Never commit JWT signing keys, database credentials, seed passwords, raw refresh tokens or production secrets.
+- Keep access tokens short lived. Refresh tokens stay in protected HttpOnly cookies and only token hashes may be persisted.
+- Endpoint authorization must use reusable permission policies, not scattered role-name comparisons.
+- The API must not run migrations at startup; use `Forjix.DatabaseMigrator`.
 
 ## Architecture
 

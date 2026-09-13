@@ -2,7 +2,7 @@
 
 Commercial management platform for small and medium businesses. This repository is independent from the institutional website and the former demonstration application.
 
-The current delivery is the architectural bootstrap only. Product, inventory, sales and dashboard modules are intentionally not implemented yet.
+The current delivery implements the multi-tenant identity foundation: real login, JWT access tokens, rotating refresh tokens, permission policies, tenant database resolution and a development tenant provisioner. Product, inventory, sales, reports and commercial dashboards are intentionally not implemented yet.
 
 ## Stack
 
@@ -35,4 +35,4 @@ npm install
 npm run build
 ```
 
-The API exposes basic health endpoints at `/api/health` and `/api/health/live`. In Development, the OpenAPI document is available at `/openapi/v1.json`.
+The API exposes health endpoints at `/api/health` and `/api/health/live`. Authentication is available at `/api/auth/login`, `/api/auth/refresh`, `/api/auth/logout`, and the authenticated context at `/api/me`. In Development, OpenAPI is available at `/openapi/v1.json`.

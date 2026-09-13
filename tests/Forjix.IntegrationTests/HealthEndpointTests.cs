@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Forjix.IntegrationTests;
 
-public sealed class HealthEndpointTests(WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public sealed class HealthEndpointTests(ForjixWebApplicationFactory factory)
+    : IClassFixture<ForjixWebApplicationFactory>
 {
     [Fact]
     public async Task LiveEndpointReturnsSuccess()
@@ -19,4 +19,3 @@ public sealed class HealthEndpointTests(WebApplicationFactory<Program> factory)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 }
-

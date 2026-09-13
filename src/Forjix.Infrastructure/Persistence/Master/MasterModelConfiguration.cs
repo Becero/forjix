@@ -45,7 +45,7 @@ internal static class MasterModelConfiguration
             entity.Property(x => x.DatabaseName).HasMaxLength(128).IsRequired();
             entity.Property(x => x.ServerReference).HasMaxLength(200).IsRequired();
             entity.Property(x => x.SecretReference).HasMaxLength(300).IsRequired();
-            entity.Property(x => x.SchemaVersion).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.SchemaVersion).HasMaxLength(160).IsRequired();
             entity.HasIndex(x => x.TenantId).IsUnique();
             entity.HasOne(x => x.Tenant).WithOne(x => x.Database).HasForeignKey<TenantDatabase>(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -67,6 +67,22 @@ internal static class MasterModelConfiguration
             entity.Property(x => x.FeatureCode).HasMaxLength(120).IsRequired();
             entity.HasIndex(x => new { x.TenantId, x.FeatureCode }).IsUnique();
             entity.HasOne(x => x.Tenant).WithMany(x => x.Features).HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MigrationExecution>(entity =>
+        {
+            entity.ToTable("MigrationExecutions");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.DatabaseName).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.MigrationType).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.AppliedMigration).HasMaxLength(160);
+            entity.Property(x => x.ErrorSummary).HasMaxLength(1000);
+            entity.HasIndex(x => new { x.TenantId, x.StartedAt });
+            entity.HasOne(x => x.Tenant)
+                .WithMany(x => x.MigrationExecutions)
+                .HasForeignKey(x => x.TenantId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

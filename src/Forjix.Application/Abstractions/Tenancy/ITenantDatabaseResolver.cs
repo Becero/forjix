@@ -5,12 +5,18 @@ public interface ITenantDatabaseResolver
     Task<ResolvedTenantDatabase?> ResolveBySlugAsync(
         string tenantSlug,
         CancellationToken cancellationToken = default);
+
+    Task<ResolvedTenantDatabase?> ResolveByTenantIdAsync(
+        Guid tenantId,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record ResolvedTenantDatabase(
     Guid TenantId,
+    string TenantName,
     string TenantSlug,
     string DatabaseName,
     string ConnectionString,
-    string SchemaVersion);
-
+    string SchemaVersion,
+    IReadOnlyList<string> Features,
+    IReadOnlyDictionary<string, string> Settings);

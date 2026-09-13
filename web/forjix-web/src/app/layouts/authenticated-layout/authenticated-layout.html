@@ -1,11 +1,10 @@
 <div class="application-layout">
   <aside>
     <div class="brand"><span>F</span> FORJIX</div>
-    <p>Ambiente inicial</p>
+    <p>{{ context()?.tenant?.name }}</p>
   </aside>
   <section>
-    <header>Forjix</header>
+    <header><span>{{ context()?.user?.name }}</span><button type="button" (click)="logout()">Sair</button></header>
     <main><router-outlet /></main>
   </section>
 </div>
-

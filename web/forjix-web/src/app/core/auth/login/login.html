@@ -17,18 +17,20 @@
       <h2>Bem-vindo</h2>
       <p class="supporting">Informe sua empresa e seus dados de acesso.</p>
 
-      <form [formGroup]="form">
+      <form [formGroup]="form" (ngSubmit)="submit()">
         <label for="tenant">Empresa</label>
         <input id="tenant" type="text" formControlName="tenantSlug" placeholder="codigo-da-empresa" autocomplete="organization">
         <label for="email">E-mail</label>
         <input id="email" type="email" formControlName="email" placeholder="voce@empresa.com.br" autocomplete="username">
         <label for="password">Senha</label>
         <input id="password" type="password" formControlName="password" placeholder="Sua senha" autocomplete="current-password">
-        <button type="button" disabled>Entrar no sistema</button>
+        @if (error()) { <p class="form-error" role="alert">{{ error() }}</p> }
+        <button type="submit" [disabled]="form.invalid || submitting()">
+          {{ submitting() ? 'Entrando…' : 'Entrar no sistema' }}
+        </button>
       </form>
 
-      <p class="phase-note">Autenticação será conectada na próxima etapa aprovada.</p>
+      <p class="phase-note">Sua sessão usa token de curta duração e renovação protegida.</p>
     </div>
   </section>
 </main>
-

@@ -1,4 +1,7 @@
+using System.Threading.RateLimiting;
+using Forjix.Api.Authentication;
 using Forjix.Api.Middleware;
+using Forjix.Application;
 using Forjix.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
@@ -21,7 +24,31 @@ builder.Services.AddProblemDetails(options =>
 });
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddHealthChecks();
+builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddDataProtection();
+builder.Services.AddScoped<IRefreshTokenCookieManager, RefreshTokenCookieManager>();
+builder.Services.AddCors(options => options.AddPolicy("web", policy =>
+{
+    var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+    if (origins.Length > 0)
+    {
+        policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+    }
+}));
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("authentication", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+});
 
 var app = builder.Build();
 
@@ -35,6 +62,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("web");
+app.UseRateLimiter();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/api/health");

@@ -61,6 +61,7 @@ internal static class TenantModelConfiguration
             entity.ToTable("RefreshTokens");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.TokenHash).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.RowVersion).IsRowVersion();
             entity.HasIndex(x => x.TokenHash).IsUnique();
             entity.HasIndex(x => new { x.UserId, x.FamilyId });
             entity.HasOne(x => x.User).WithMany(x => x.RefreshTokens).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
@@ -81,4 +82,3 @@ internal static class TenantModelConfiguration
         });
     }
 }
-

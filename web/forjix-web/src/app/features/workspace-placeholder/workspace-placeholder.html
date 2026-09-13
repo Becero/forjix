@@ -1,6 +1,9 @@
 <section>
-  <p>BOOTSTRAP ARQUITETURAL</p>
-  <h1>Base autenticada preparada</h1>
-  <span>Os módulos comerciais serão adicionados somente após a aprovação desta fundação.</span>
+  <p>AMBIENTE AUTENTICADO</p>
+  <h1>Bem-vindo, {{ context()?.user?.name }}</h1>
+  <span>{{ context()?.tenant?.name }}</span>
+  <h2>Permissões ativas</h2>
+  <ul>
+    @for (permission of context()?.permissions ?? []; track permission) { <li>{{ permission }}</li> }
+  </ul>
 </section>
-

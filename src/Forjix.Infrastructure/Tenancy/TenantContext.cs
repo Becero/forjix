@@ -1,11 +1,11 @@
+using Forjix.Application.Abstractions.Identity;
 using Forjix.Application.Abstractions.Tenancy;
 
 namespace Forjix.Infrastructure.Tenancy;
 
-internal sealed class TenantContext : ITenantContext
+internal sealed class TenantContext(ICurrentUser currentUser) : ITenantContext
 {
-    public Guid TenantId => Guid.Empty;
-    public string TenantSlug => string.Empty;
-    public bool IsResolved => false;
+    public Guid TenantId => currentUser.TenantId ?? Guid.Empty;
+    public string TenantSlug => currentUser.TenantSlug ?? string.Empty;
+    public bool IsResolved => currentUser.IsAuthenticated && currentUser.TenantId.HasValue && !string.IsNullOrWhiteSpace(currentUser.TenantSlug);
 }
-

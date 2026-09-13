@@ -28,10 +28,24 @@ Each tenant database has the same schema. Operational tables do not receive a `T
 
 Connection credentials are resolved through `ISecretProvider`; `TenantDatabase.SecretReference` is the only persisted pointer.
 
+Login is the only flow that accepts a tenant slug. The resolver requires an active tenant and a currently active subscription before opening its database. After authentication, `ICurrentUser` and `ITenantContext` read tenant identity only from validated JWT claims; a request header cannot select or replace a tenant.
+
+## Authentication and authorization
+
+- Passwords use the ASP.NET Core Identity password hasher.
+- Access JWTs are short lived, signed by an external secret, and contain user, tenant and role identity.
+- The access token is kept only in Angular memory.
+- The opaque refresh token is represented in the browser by a Data Protection-encrypted, HttpOnly, SameSite cookie. Only its SHA-256 hash is stored in the tenant database.
+- Refresh rotates the token, revokes the predecessor and uses a token family plus optimistic concurrency to detect replay and races.
+- Permissions are loaded from the tenant database through dynamic `Permission:*` policies, avoiding role-name checks in endpoints.
+- `/api/me` returns only safe user, tenant, role, permission, feature and frontend-setting context.
+
+Explicit CORS origins and native fixed-window rate limiting protect the browser authentication boundary. Authentication failures use the same public message for invalid tenant, user or password.
+
 ## Customization
 
 Customer differences must use plan features, tenant feature overrides, settings and adapters/providers. Customer-specific branches and conditionals are prohibited.
 
 ## Initial scope
 
-This bootstrap includes identity/access entities, the two DbContexts, tenancy contracts, API infrastructure and the Angular shell. It intentionally excludes commercial modules and external provider implementations.
+This phase includes functional identity/access, both DbContexts, trusted tenancy resolution, API authentication, an authenticated Angular shell and Development provisioning. It intentionally excludes commercial modules and external provider implementations.

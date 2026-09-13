@@ -126,6 +126,12 @@ namespace Forjix.Infrastructure.Persistence.Tenant.Migrations
                     b.Property<DateTimeOffset?>("RevokedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(128)

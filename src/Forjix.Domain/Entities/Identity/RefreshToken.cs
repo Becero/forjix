@@ -10,7 +10,7 @@ public sealed class RefreshToken
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? RevokedAt { get; set; }
     public Guid? ReplacedByTokenId { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 
     public User User { get; set; } = null!;
 }
-

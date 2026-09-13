@@ -29,8 +29,12 @@ Tenant template migration:
 dotnet ef migrations add <Name> --context TenantDbContext --project src/Forjix.Infrastructure --startup-project src/Forjix.Api --output-dir Persistence/Tenant/Migrations
 ```
 
-## Apply migrations
+## Apply migrations and provision Development
 
-During Development, a single database may be updated explicitly with `dotnet ef database update`. Production must use `Forjix.DatabaseMigrator`; the API must not silently migrate all tenant databases during startup.
+The API never applies migrations at startup. `Forjix.DatabaseMigrator` first migrates `ForjixMaster`, optionally provisions Empresa Demo in Development, then discovers active tenants and migrates each isolated database. Every tenant attempt is recorded in `MigrationExecutions`; `TenantDatabase.SchemaVersion` and `LastMigratedAt` are updated after success.
 
-The migrator is only a bootstrap placeholder in this delivery. Fleet discovery, secret resolution, execution records and failure policies are implemented in a later approved step.
+Tenant connection strings are loaded through each `TenantDatabase.SecretReference`. The demo reference is `TenantDatabases:empresa-demo`; only the reference is persisted centrally.
+
+The development seed is idempotent by construction: it looks up the plan, tenant, subscription, setting, permissions, role, grants, user and user-role relation by stable keys before inserting. Its real SQL Server acceptance test must execute the migrator twice and inspect both databases.
+
+The current tenant schema uses a SQL Server `rowversion` on refresh tokens so concurrent rotation attempts cannot both succeed.

@@ -22,6 +22,51 @@ namespace Forjix.Infrastructure.Persistence.Master.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Forjix.Domain.Entities.Master.MigrationExecution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AppliedMigration")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateTimeOffset>("CompletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DatabaseName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ErrorSummary")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("MigrationType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "StartedAt");
+
+                    b.ToTable("MigrationExecutions", (string)null);
+                });
+
             modelBuilder.Entity("Forjix.Domain.Entities.Master.Plan", b =>
                 {
                     b.Property<Guid>("Id")
@@ -154,10 +199,13 @@ namespace Forjix.Infrastructure.Persistence.Master.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<DateTimeOffset?>("LastMigratedAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<string>("SchemaVersion")
                         .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
 
                     b.Property<string>("SecretReference")
                         .IsRequired()
@@ -244,6 +292,16 @@ namespace Forjix.Infrastructure.Persistence.Master.Migrations
                     b.ToTable("TenantSettings", (string)null);
                 });
 
+            modelBuilder.Entity("Forjix.Domain.Entities.Master.MigrationExecution", b =>
+                {
+                    b.HasOne("Forjix.Domain.Entities.Master.Tenant", "Tenant")
+                        .WithMany("MigrationExecutions")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("Forjix.Domain.Entities.Master.Subscription", b =>
                 {
                     b.HasOne("Forjix.Domain.Entities.Master.Plan", "Plan")
@@ -318,6 +376,8 @@ namespace Forjix.Infrastructure.Persistence.Master.Migrations
                     b.Navigation("Database");
 
                     b.Navigation("Features");
+
+                    b.Navigation("MigrationExecutions");
 
                     b.Navigation("Settings");
 

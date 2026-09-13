@@ -10,7 +10,7 @@ public sealed class TenantDatabase
     public required string SchemaVersion { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public DateTimeOffset? LastMigratedAt { get; set; }
 
     public Tenant Tenant { get; set; } = null!;
 }
-

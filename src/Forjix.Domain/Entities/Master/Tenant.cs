@@ -18,5 +18,5 @@ public sealed class Tenant
     public ICollection<Subscription> Subscriptions { get; set; } = [];
     public ICollection<TenantSetting> Settings { get; set; } = [];
     public ICollection<TenantFeature> Features { get; set; } = [];
+    public ICollection<MigrationExecution> MigrationExecutions { get; set; } = [];
 }
-
