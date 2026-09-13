@@ -3,6 +3,7 @@ using Forjix.Domain.Entities.Catalog;
 using Forjix.Domain.Entities.Customers;
 using Forjix.Domain.Entities.Identity;
 using Forjix.Domain.Entities.Inventory;
+using Forjix.Domain.Entities.Purchases;
 using Forjix.Domain.Entities.Sales;
 using Microsoft.EntityFrameworkCore;
 using InventoryEntity = Forjix.Domain.Entities.Inventory.Inventory;
@@ -26,6 +27,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
     public DbSet<SaleItem> SaleItems => Set<SaleItem>();
     public DbSet<SaleSequence> SaleSequences => Set<SaleSequence>();
     public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<Supplier> Suppliers => Set<Supplier>(); public DbSet<Purchase> Purchases => Set<Purchase>(); public DbSet<PurchaseItem> PurchaseItems => Set<PurchaseItem>(); public DbSet<PurchaseSequence> PurchaseSequences => Set<PurchaseSequence>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

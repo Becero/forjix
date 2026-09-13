@@ -4,6 +4,7 @@ using Forjix.Application.Features.Customers;
 using Forjix.Application.Features.Authorization;
 using Forjix.Application.Features.Inventory;
 using Forjix.Application.Features.Management;
+using Forjix.Application.Features.Purchases;
 using Forjix.Application.Features.Sales;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -19,6 +20,7 @@ public static class DependencyInjection
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<ISalesService, SalesService>();
         services.AddScoped<ICustomerService, CustomerService>();
+        services.AddScoped<IPurchaseService, PurchaseService>();
         return services;
     }
 }

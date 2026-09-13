@@ -45,6 +45,7 @@ These rules apply to the entire repository.
 - Negative stock is disabled by default and may only become a validated tenant setting.
 - Never update an inventory balance without generating an InventoryMovement in the same transaction.
 - A sale never updates inventory directly. Sale creation/cancellation and their inventory movements must commit in one transaction.
+- A purchase never updates inventory directly. Receiving and all resulting inventory movements must commit in one transaction.
 
 ## Scope control
 

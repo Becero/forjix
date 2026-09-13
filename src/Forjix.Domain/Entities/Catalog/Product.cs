@@ -19,4 +19,5 @@ public sealed class Product
     public Inventory.Inventory Inventory { get; set; } = null!;
     public ICollection<Inventory.InventoryMovement> InventoryMovements { get; set; } = [];
     public ICollection<Sales.SaleItem> SaleItems { get; set; } = [];
+    public ICollection<Purchases.PurchaseItem> PurchaseItems { get; set; } = [];
 }

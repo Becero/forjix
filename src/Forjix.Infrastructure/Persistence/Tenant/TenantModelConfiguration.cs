@@ -3,6 +3,7 @@ using Forjix.Domain.Entities.Catalog;
 using Forjix.Domain.Entities.Customers;
 using Forjix.Domain.Entities.Identity;
 using Forjix.Domain.Entities.Inventory;
+using Forjix.Domain.Entities.Purchases;
 using Forjix.Domain.Entities.Sales;
 using Microsoft.EntityFrameworkCore;
 using InventoryEntity = Forjix.Domain.Entities.Inventory.Inventory;
@@ -184,5 +185,10 @@ internal static class TenantModelConfiguration
         });
 
         modelBuilder.Entity<Sale>().HasOne(x => x.Customer).WithMany(x => x.Sales).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Supplier>(e=>{e.ToTable("Suppliers");e.HasKey(x=>x.Id);e.Property(x=>x.Name).HasMaxLength(160).IsRequired();e.Property(x=>x.Document).HasMaxLength(14);e.Property(x=>x.Email).HasMaxLength(254);e.Property(x=>x.Phone).HasMaxLength(30);e.Property(x=>x.ContactName).HasMaxLength(160);e.Property(x=>x.Notes).HasMaxLength(1000);e.HasIndex(x=>x.Document).IsUnique().HasFilter("[Document] IS NOT NULL");e.HasIndex(x=>x.Name);});
+        modelBuilder.Entity<Purchase>(e=>{e.ToTable("Purchases");e.HasKey(x=>x.Id);e.Property(x=>x.Number).HasMaxLength(32).IsRequired();e.Property(x=>x.Total).HasPrecision(18,2);e.Property(x=>x.Notes).HasMaxLength(1000);e.Property(x=>x.RowVersion).IsRowVersion();e.HasIndex(x=>x.Number).IsUnique();e.HasIndex(x=>x.CreatedAt);e.HasOne(x=>x.Supplier).WithMany(x=>x.Purchases).HasForeignKey(x=>x.SupplierId).OnDelete(DeleteBehavior.Restrict);e.HasOne(x=>x.User).WithMany().HasForeignKey(x=>x.UserId).OnDelete(DeleteBehavior.Restrict);});
+        modelBuilder.Entity<PurchaseItem>(e=>{e.ToTable("PurchaseItems");e.HasKey(x=>x.Id);e.Property(x=>x.ProductName).HasMaxLength(160).IsRequired();e.Property(x=>x.Sku).HasMaxLength(80).IsRequired();e.Property(x=>x.Quantity).HasPrecision(18,3);e.Property(x=>x.UnitCost).HasPrecision(18,2);e.Property(x=>x.Total).HasPrecision(18,2);e.HasOne(x=>x.Purchase).WithMany(x=>x.Items).HasForeignKey(x=>x.PurchaseId).OnDelete(DeleteBehavior.Cascade);e.HasOne(x=>x.Product).WithMany(x=>x.PurchaseItems).HasForeignKey(x=>x.ProductId).OnDelete(DeleteBehavior.Restrict);});
+        modelBuilder.Entity<PurchaseSequence>(e=>{e.ToTable("PurchaseSequences");e.HasKey(x=>x.Date);});
     }
 }

@@ -384,6 +384,21 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
         Assert.Equal(0, listB.RootElement.GetProperty("total").GetInt32());
     }
 
+    [SqlFact]
+    public async Task SuppliersAndPurchaseReceiptMoveStockAndRemainTenantIsolated()
+    {
+        using var client=Client();var admin=await LoginAsync(client,TenantA,AdminEmail);var doc=Random.Shared.NextInt64(10_000_000_000,99_999_999_999).ToString(CultureInfo.InvariantCulture);
+        var supplierResponse=await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/suppliers",admin.AccessToken,new{name="Fornecedor SQL",document=doc,email="fornecedor@teste.local",phone="11999999999",contactName="Contato",notes="Teste",isActive=true});
+        Assert.Equal(HttpStatusCode.Created,supplierResponse.StatusCode);using var supplier=await ReadJsonAsync(supplierResponse);var supplierId=supplier.RootElement.GetProperty("id").GetGuid();
+        Assert.Equal(HttpStatusCode.OK,(await AuthorizedJsonAsync(client,HttpMethod.Put,$"/api/suppliers/{supplierId}",admin.AccessToken,new{name="Fornecedor Atualizado",document=doc,email="fornecedor@teste.local",phone="11999999999",contactName="Contato",notes="Atualizado",isActive=true})).StatusCode);
+        var productId=await CreateProductAsync(client,admin.AccessToken,"PUR");var purchaseResponse=await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/purchases",admin.AccessToken,new{supplierId,notes="Compra SQL",items=new[]{new{productId,quantity=50,unitCost=4}}});
+        Assert.Equal(HttpStatusCode.Created,purchaseResponse.StatusCode);using var purchase=await ReadJsonAsync(purchaseResponse);var purchaseId=purchase.RootElement.GetProperty("id").GetGuid();var version=purchase.RootElement.GetProperty("rowVersion").GetString();
+        Assert.Equal(HttpStatusCode.OK,(await AuthorizedJsonAsync(client,HttpMethod.Post,$"/api/purchases/{purchaseId}/receive",admin.AccessToken,new{rowVersion=version})).StatusCode);
+        await using var db=CreateTenantDb(TenantA);Assert.Equal(50,await db.Inventories.Where(x=>x.ProductId==productId).Select(x=>x.Quantity).SingleAsync());Assert.Equal(1,await db.InventoryMovements.CountAsync(x=>x.ProductId==productId&&x.Type==InventoryMovementType.Purchase));
+        Assert.Equal(HttpStatusCode.Conflict,(await AuthorizedJsonAsync(client,HttpMethod.Post,$"/api/purchases/{purchaseId}/cancel",admin.AccessToken,new{rowVersion=version})).StatusCode);
+        var adminB=await LoginAsync(client,TenantB,AdminEmail);Assert.Equal(HttpStatusCode.NotFound,(await AuthorizedGetAsync(client,$"/api/purchases/{purchaseId}",adminB.AccessToken)).StatusCode);using var suppliersB=await ReadJsonAsync(await AuthorizedGetAsync(client,$"/api/suppliers?search={doc}",adminB.AccessToken));Assert.Equal(0,suppliersB.RootElement.GetProperty("total").GetInt32());
+    }
+
     private static string Password() =>
         Environment.GetEnvironmentVariable("FORJIX_CI_ADMIN_PASSWORD")
         ?? throw new InvalidOperationException("FORJIX_CI_ADMIN_PASSWORD is required for SQL integration tests.");

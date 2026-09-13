@@ -14,5 +14,10 @@ public enum AuditAction
     SaleCreated = 9,
     SaleCancelled = 10,
     CustomerCreated = 11,
-    CustomerUpdated = 12
+    CustomerUpdated = 12,
+    SupplierCreated = 13,
+    SupplierUpdated = 14,
+    PurchaseCreated = 15,
+    PurchaseReceived = 16,
+    PurchaseCancelled = 17
 }
