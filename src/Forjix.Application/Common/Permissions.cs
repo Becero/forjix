@@ -27,6 +27,8 @@ public static class Permissions
     public const string PurchasesView = "purchases.view";
     public const string PurchasesManage = "purchases.manage";
     public const string PurchasesReceive = "purchases.receive";
+    public const string CashView = "cash.view";
+    public const string CashManage = "cash.manage";
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -48,7 +50,7 @@ public static class Permissions
         ReportsView
         ,CustomersView,
         CustomersManage
-        ,SuppliersView, SuppliersManage, PurchasesView, PurchasesManage, PurchasesReceive
+        ,SuppliersView, SuppliersManage, PurchasesView, PurchasesManage, PurchasesReceive, CashView, CashManage
     ];
 
     public static readonly IReadOnlyList<Definition> Catalog =
@@ -73,5 +75,6 @@ public static class Permissions
         new(CustomersManage, "Gerenciar clientes", "Clientes")
         ,new(SuppliersView, "Visualizar fornecedores", "Fornecedores"), new(SuppliersManage, "Gerenciar fornecedores", "Fornecedores"),
         new(PurchasesView, "Visualizar compras", "Compras"), new(PurchasesManage, "Gerenciar compras", "Compras"), new(PurchasesReceive, "Receber compras", "Compras")
+        ,new(CashView,"Visualizar caixa","Caixa"),new(CashManage,"Gerenciar caixa","Caixa")
     ];
 }

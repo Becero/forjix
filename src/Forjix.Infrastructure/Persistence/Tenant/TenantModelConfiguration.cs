@@ -1,5 +1,6 @@
 using Forjix.Domain.Entities.Audit;
 using Forjix.Domain.Entities.Catalog;
+using Forjix.Domain.Entities.Cash;
 using Forjix.Domain.Entities.Customers;
 using Forjix.Domain.Entities.Identity;
 using Forjix.Domain.Entities.Inventory;
@@ -190,5 +191,8 @@ internal static class TenantModelConfiguration
         modelBuilder.Entity<Purchase>(e=>{e.ToTable("Purchases");e.HasKey(x=>x.Id);e.Property(x=>x.Number).HasMaxLength(32).IsRequired();e.Property(x=>x.Total).HasPrecision(18,2);e.Property(x=>x.Notes).HasMaxLength(1000);e.Property(x=>x.RowVersion).IsRowVersion();e.HasIndex(x=>x.Number).IsUnique();e.HasIndex(x=>x.CreatedAt);e.HasOne(x=>x.Supplier).WithMany(x=>x.Purchases).HasForeignKey(x=>x.SupplierId).OnDelete(DeleteBehavior.Restrict);e.HasOne(x=>x.User).WithMany().HasForeignKey(x=>x.UserId).OnDelete(DeleteBehavior.Restrict);});
         modelBuilder.Entity<PurchaseItem>(e=>{e.ToTable("PurchaseItems");e.HasKey(x=>x.Id);e.Property(x=>x.ProductName).HasMaxLength(160).IsRequired();e.Property(x=>x.Sku).HasMaxLength(80).IsRequired();e.Property(x=>x.Quantity).HasPrecision(18,3);e.Property(x=>x.UnitCost).HasPrecision(18,2);e.Property(x=>x.Total).HasPrecision(18,2);e.HasOne(x=>x.Purchase).WithMany(x=>x.Items).HasForeignKey(x=>x.PurchaseId).OnDelete(DeleteBehavior.Cascade);e.HasOne(x=>x.Product).WithMany(x=>x.PurchaseItems).HasForeignKey(x=>x.ProductId).OnDelete(DeleteBehavior.Restrict);});
         modelBuilder.Entity<PurchaseSequence>(e=>{e.ToTable("PurchaseSequences");e.HasKey(x=>x.Date);});
+        modelBuilder.Entity<CashRegister>(e=>{e.ToTable("CashRegisters");e.HasKey(x=>x.Id);e.Property(x=>x.Name).HasMaxLength(100).IsRequired();});
+        modelBuilder.Entity<CashSession>(e=>{e.ToTable("CashSessions");e.HasKey(x=>x.Id);e.Property(x=>x.OpeningAmount).HasPrecision(18,2);e.Property(x=>x.ClosingAmount).HasPrecision(18,2);e.Property(x=>x.RowVersion).IsRowVersion();e.HasIndex(x=>x.OpenedAt);e.HasOne(x=>x.CashRegister).WithMany(x=>x.Sessions).HasForeignKey(x=>x.CashRegisterId).OnDelete(DeleteBehavior.Restrict);});
+        modelBuilder.Entity<CashMovement>(e=>{e.ToTable("CashMovements");e.HasKey(x=>x.Id);e.Property(x=>x.Amount).HasPrecision(18,2);e.Property(x=>x.Reason).HasMaxLength(500);e.HasIndex(x=>new{x.CashSessionId,x.CreatedAt});e.HasOne(x=>x.CashSession).WithMany(x=>x.Movements).HasForeignKey(x=>x.CashSessionId).OnDelete(DeleteBehavior.Restrict);});
     }
 }

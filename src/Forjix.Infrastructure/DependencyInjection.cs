@@ -1,5 +1,6 @@
 using System.Text;
 using Forjix.Application.Abstractions.Authentication;
+using Forjix.Application.Abstractions.Cash;
 using Forjix.Application.Abstractions.Customers;
 using Forjix.Application.Abstractions.Authorization;
 using Forjix.Application.Abstractions.Identity;
@@ -11,6 +12,7 @@ using Forjix.Application.Abstractions.Sales;
 using Forjix.Application.Abstractions.Tenancy;
 using Forjix.Domain.Entities.Identity;
 using Forjix.Infrastructure.Authentication;
+using Forjix.Infrastructure.Cash;
 using Forjix.Infrastructure.Customers;
 using Forjix.Infrastructure.Authorization;
 using Forjix.Infrastructure.Inventory;
@@ -103,6 +105,7 @@ public static class DependencyInjection
         services.AddScoped<ISalesStoreFactory, SalesStoreFactory>();
         services.AddScoped<ICustomerStoreFactory, CustomerStoreFactory>();
         services.AddScoped<IPurchaseStoreFactory, PurchaseStoreFactory>();
+        services.AddScoped<ICashStoreFactory, CashStoreFactory>();
         services.AddSingleton<ISecretProvider, ConfigurationSecretProvider>();
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
         services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();

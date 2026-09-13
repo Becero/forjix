@@ -341,6 +341,8 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
     {
         using var client = Client();
         var admin = await LoginAsync(client, TenantA, AdminEmail);
+        await EnsureCashClosedAsync(client, admin.AccessToken);
+        Assert.Equal(HttpStatusCode.Created, (await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/cash/open", admin.AccessToken, new { openingAmount = 100 })).StatusCode);
         var productId = await CreateProductAsync(client, admin.AccessToken, "SALE");
         using var initial = await ReadJsonAsync(await AuthorizedGetAsync(client, $"/api/inventory/{productId}", admin.AccessToken));
         var entry = await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/inventory/{productId}/movements", admin.AccessToken,
@@ -369,6 +371,19 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
 
         var adminB = await LoginAsync(client, TenantB, AdminEmail);
         Assert.Equal(HttpStatusCode.NotFound, (await AuthorizedGetAsync(client, $"/api/sales/{saleId}", adminB.AccessToken)).StatusCode);
+        await EnsureCashClosedAsync(client, admin.AccessToken);
+    }
+
+    [SqlFact]
+    public async Task CashSupportsOpenSupplyWithdrawalAndClose()
+    {
+        using var client=Client();var admin=await LoginAsync(client,TenantA,AdminEmail);await EnsureCashClosedAsync(client,admin.AccessToken);
+        var openedResponse=await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/cash/open",admin.AccessToken,new{openingAmount=100});Assert.Equal(HttpStatusCode.Created,openedResponse.StatusCode);using var opened=await ReadJsonAsync(openedResponse);var version=opened.RootElement.GetProperty("rowVersion").GetString();
+        Assert.Equal(HttpStatusCode.Conflict,(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/cash/open",admin.AccessToken,new{openingAmount=0})).StatusCode);
+        var supplyResponse=await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/cash/supply",admin.AccessToken,new{amount=25,reason="Troco",rowVersion=version});using var supplied=await ReadJsonAsync(supplyResponse);version=supplied.RootElement.GetProperty("rowVersion").GetString();
+        var withdrawalResponse=await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/cash/withdraw",admin.AccessToken,new{amount=10,reason="Despesa",rowVersion=version});using var withdrawn=await ReadJsonAsync(withdrawalResponse);version=withdrawn.RootElement.GetProperty("rowVersion").GetString();Assert.Equal(115,withdrawn.RootElement.GetProperty("expectedAmount").GetDecimal());
+        Assert.Equal(HttpStatusCode.OK,(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/cash/close",admin.AccessToken,new{closingAmount=115,rowVersion=version})).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict,(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/cash/supply",admin.AccessToken,new{amount=1,reason="Fechado",rowVersion=version})).StatusCode);
     }
 
     [SqlFact]
@@ -412,6 +427,15 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
             new { categoryId = category.RootElement.GetProperty("id").GetGuid(), name = $"Produto {prefix}", sku = $"{prefix}-{Guid.NewGuid():N}", barcode = (string?)null, salePrice = 10, costPrice = 4, minimumStock = 2, isActive = true, rowVersion = (string?)null });
         using var product = await ReadJsonAsync(productResponse);
         return product.RootElement.GetProperty("id").GetGuid();
+    }
+
+    private static async Task EnsureCashClosedAsync(HttpClient client,string token)
+    {
+        using var current=await AuthorizedGetAsync(client,"/api/cash/current",token);Assert.True(current.IsSuccessStatusCode);
+        var content=await current.Content.ReadAsStringAsync();if(string.IsNullOrWhiteSpace(content))return;
+        using var response=JsonDocument.Parse(content);if(response.RootElement.ValueKind==JsonValueKind.Null)return;
+        var version=response.RootElement.GetProperty("rowVersion").GetString();var expected=response.RootElement.GetProperty("expectedAmount").GetDecimal();
+        var closed=await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/cash/close",token,new{closingAmount=Math.Max(0,expected),rowVersion=version});Assert.Equal(HttpStatusCode.OK,closed.StatusCode);
     }
 
     private HttpClient Client() => factory.CreateClient(new()

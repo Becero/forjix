@@ -5,6 +5,7 @@ using Forjix.Application.Abstractions.Tenancy;
 using Forjix.Application.Common;
 using Forjix.Application.Features.Sales;
 using Forjix.Domain.Entities.Audit;
+using Forjix.Domain.Entities.Cash;
 using Forjix.Domain.Entities.Inventory;
 using Forjix.Domain.Entities.Sales;
 using Forjix.Domain.Enums;
@@ -27,6 +28,8 @@ internal sealed class SalesStore(TenantDbContext db) : ISalesStore
         {
             var existing = await SaleQuery().SingleOrDefaultAsync(x => x.IdempotencyKey == idempotencyKey, cancellationToken);
             if (existing is not null) { await transaction.CommitAsync(cancellationToken); return Map(existing); }
+            var cashSession = await db.CashSessions.Include(x => x.Movements).SingleOrDefaultAsync(x => x.Status == CashSessionStatus.Open, cancellationToken)
+                ?? throw new ResourceConflictException("Abra o caixa antes de realizar uma venda.");
 
             var items = requestedItems.GroupBy(x => x.ProductId).Select(x => new CreateSaleItemRequest(x.Key, x.Sum(y => y.Quantity))).ToList();
             var productIds = items.Select(x => x.ProductId).ToList();
@@ -58,6 +61,7 @@ internal sealed class SalesStore(TenantDbContext db) : ISalesStore
                 db.InventoryMovements.Add(new InventoryMovement { InventoryId = inventory.Id, ProductId = inventory.ProductId, Type = InventoryMovementType.Sale, Quantity = request.Quantity, PreviousQuantity = change.PreviousQuantity, NewQuantity = change.NewQuantity, ReferenceType = nameof(Sale), ReferenceId = sale.Id.ToString(), UserId = userId, CreatedAt = now });
             }
             db.Sales.Add(sale);
+            if (paymentMethod == PaymentMethod.Cash) cashSession.Movements.Add(new CashMovement { Type = CashMovementType.Sale, Amount = sale.Total, Reason = sale.Number, SaleId = sale.Id, UserId = userId, CreatedAt = now });
             db.AuditLogs.Add(Audit(AuditAction.SaleCreated, sale.Id, userId, auditContext, now, new { sale.Number, sale.Total, ItemCount = items.Count }));
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);

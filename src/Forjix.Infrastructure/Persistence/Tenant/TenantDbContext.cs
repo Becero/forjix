@@ -1,5 +1,6 @@
 using Forjix.Domain.Entities.Audit;
 using Forjix.Domain.Entities.Catalog;
+using Forjix.Domain.Entities.Cash;
 using Forjix.Domain.Entities.Customers;
 using Forjix.Domain.Entities.Identity;
 using Forjix.Domain.Entities.Inventory;
@@ -28,6 +29,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
     public DbSet<SaleSequence> SaleSequences => Set<SaleSequence>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Supplier> Suppliers => Set<Supplier>(); public DbSet<Purchase> Purchases => Set<Purchase>(); public DbSet<PurchaseItem> PurchaseItems => Set<PurchaseItem>(); public DbSet<PurchaseSequence> PurchaseSequences => Set<PurchaseSequence>();
+    public DbSet<CashRegister> CashRegisters=>Set<CashRegister>(); public DbSet<CashSession> CashSessions=>Set<CashSession>(); public DbSet<CashMovement> CashMovements=>Set<CashMovement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

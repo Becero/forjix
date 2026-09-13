@@ -12,6 +12,7 @@
       <a *ngIf="can('customers.view')" routerLink="/app/customers" routerLinkActive="active"><b>♙</b>Clientes</a>
       <a *ngIf="can('suppliers.view')" routerLink="/app/suppliers" routerLinkActive="active"><b>♧</b>Fornecedores</a>
       <a *ngIf="can('purchases.view')" routerLink="/app/purchases" routerLinkActive="active"><b>▱</b>Compras</a>
+      <a *ngIf="can('cash.view')" routerLink="/app/cash" routerLinkActive="active"><b>▣</b>Caixa</a>
       <a class="disabled"><b>▥</b>Relatórios <em>Em breve</em></a>
       <label>ADMINISTRAÇÃO</label>
       <a *ngIf="can('administration.users.view')" routerLink="/app/users" routerLinkActive="active"><b>♟</b>Usuários</a>

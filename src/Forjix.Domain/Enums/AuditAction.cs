@@ -19,5 +19,9 @@ public enum AuditAction
     SupplierUpdated = 14,
     PurchaseCreated = 15,
     PurchaseReceived = 16,
-    PurchaseCancelled = 17
+    PurchaseCancelled = 17,
+    CashOpened = 18,
+    CashClosed = 19,
+    CashWithdrawal = 20,
+    CashSupply = 21
 }
