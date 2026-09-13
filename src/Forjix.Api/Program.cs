@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading.RateLimiting;
 using Forjix.Api.Authentication;
 using Forjix.Api.Middleware;
@@ -8,12 +9,13 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-#if DEBUG
-// Visual Studio can start a project without applying launchSettings.json. In a Debug
-// build, load the developer's external secrets explicitly so local startup does not
-// depend on the selected IDE profile. Release builds never use this fallback.
-builder.Configuration.AddUserSecrets<Program>(optional: true);
-#endif
+// Visual Studio can start without applying launchSettings.json and can also debug a
+// Release build. An attached local debugger may load the developer's external secrets;
+// unattended production processes still depend exclusively on deployment configuration.
+if (builder.Environment.IsDevelopment() || Debugger.IsAttached)
+{
+    builder.Configuration.AddUserSecrets<Program>(optional: true);
+}
 
 builder.Host.UseSerilog((context, services, loggerConfiguration) => loggerConfiguration
     .ReadFrom.Configuration(context.Configuration)

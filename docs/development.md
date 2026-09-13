@@ -64,7 +64,17 @@ dotnet build --no-restore
 dotnet run --project src/Forjix.Api
 ```
 
-The Visual Studio `http` and `https` profiles both define `Development`. Debug builds also load the API User Secrets explicitly, so pressing F5 remains independent from the IDE's selected launch profile. Release builds never use this fallback and must receive configuration from the deployment environment or secret manager.
+The Visual Studio `http` and `https` profiles both define `Development`. A process started in Development or with an attached debugger also loads the API User Secrets explicitly, so pressing F5 remains independent from the IDE's selected launch profile and build configuration. An unattended production process never uses this fallback and must receive configuration from the deployment environment or secret manager.
+
+## Start the complete application
+
+From a Visual Studio terminal or PowerShell opened at the repository root, run:
+
+```powershell
+.\start-forjix.ps1
+```
+
+The script validates the external configuration, applies the controlled migrations, then starts the API and Angular development server in the same terminal. Press `Ctrl+C` to stop both processes.
 
 ## Frontend
 
