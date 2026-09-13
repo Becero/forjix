@@ -399,6 +399,15 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
     }
 
     [SqlFact]
+    public async Task TenantSettingsAreAuditedAndIsolated()
+    {
+        using var client=Client();var adminA=await LoginAsync(client,TenantA,AdminEmail);using var original=await ReadJsonAsync(await AuthorizedGetAsync(client,"/api/settings",adminA.AccessToken));var originalName=original.RootElement.GetProperty("tradeName").GetString()!;
+        var changed=$"Empresa A {Guid.NewGuid():N}";var update=await AuthorizedJsonAsync(client,HttpMethod.Put,"/api/settings",adminA.AccessToken,new{tradeName=changed,legalName="Empresa A Testes Ltda",cnpj=(string?)null,phone="11999999999",email="contato@empresa-a.local",address="Rua de teste",allowNegativeStock=false,currency="BRL",timeZone="America/Sao_Paulo"});Assert.True(update.StatusCode==HttpStatusCode.OK,await update.Content.ReadAsStringAsync());
+        var adminB=await LoginAsync(client,TenantB,AdminEmail);using var settingsB=await ReadJsonAsync(await AuthorizedGetAsync(client,"/api/settings",adminB.AccessToken));Assert.NotEqual(changed,settingsB.RootElement.GetProperty("tradeName").GetString());await using var db=CreateTenantDb(TenantA);Assert.True(await db.AuditLogs.AnyAsync(x=>x.Action==AuditAction.TenantSettingsUpdated));
+        Assert.Equal(HttpStatusCode.OK,(await AuthorizedJsonAsync(client,HttpMethod.Put,"/api/settings",adminA.AccessToken,new{tradeName=originalName,legalName=(string?)null,cnpj=(string?)null,phone=(string?)null,email=(string?)null,address=(string?)null,allowNegativeStock=false,currency="BRL",timeZone="America/Sao_Paulo"})).StatusCode);
+    }
+
+    [SqlFact]
     public async Task CustomersSupportCrudAndRemainTenantIsolated()
     {
         using var client = Client(); var adminA = await LoginAsync(client, TenantA, AdminEmail);

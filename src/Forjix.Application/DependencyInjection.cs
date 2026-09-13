@@ -8,6 +8,7 @@ using Forjix.Application.Features.Inventory;
 using Forjix.Application.Features.Management;
 using Forjix.Application.Features.Purchases;
 using Forjix.Application.Features.Sales;
+using Forjix.Application.Features.Settings;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Forjix.Application;
@@ -25,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<IPurchaseService, PurchaseService>();
         services.AddScoped<ICashService, CashService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
+        services.AddScoped<ISettingsService, SettingsService>();
         return services;
     }
 }

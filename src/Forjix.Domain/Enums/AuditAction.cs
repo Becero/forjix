@@ -23,5 +23,6 @@ public enum AuditAction
     CashOpened = 18,
     CashClosed = 19,
     CashWithdrawal = 20,
-    CashSupply = 21
+    CashSupply = 21,
+    TenantSettingsUpdated = 22
 }

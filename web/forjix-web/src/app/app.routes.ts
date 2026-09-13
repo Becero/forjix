@@ -26,6 +26,7 @@ export const routes: Routes = [
       { path: 'purchases', canActivate: [permissionGuard], data: { permission: 'purchases.view' }, loadComponent: () => import('./features/purchases/purchases').then(module => module.Purchases) },
       { path: 'cash', canActivate: [permissionGuard], data: { permission: 'cash.view' }, loadComponent: () => import('./features/cash/cash').then(module => module.Cash) },
       { path: 'reports', canActivate: [permissionGuard], data: { permission: 'reports.view' }, loadComponent: () => import('./features/reports/reports').then(module => module.Reports) },
+      { path: 'settings', canActivate: [permissionGuard], data: { permission: 'settings.view' }, loadComponent: () => import('./features/settings/settings').then(module => module.Settings) },
       { path: 'users', canActivate: [permissionGuard], data: { permission: 'administration.users.view' }, loadComponent: () => import('./features/users/users').then(module => module.Users) },
       { path: 'roles', canActivate: [permissionGuard], data: { permission: 'administration.roles.view' }, loadComponent: () => import('./features/roles/roles').then(module => module.Roles) },
       { path: 'audit', canActivate: [permissionGuard], data: { permission: 'audit.view' }, loadComponent: () => import('./features/audit/audit').then(module => module.Audit) },
