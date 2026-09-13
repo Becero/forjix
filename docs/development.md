@@ -64,6 +64,8 @@ dotnet build --no-restore
 dotnet run --project src/Forjix.Api
 ```
 
+The Visual Studio `http` and `https` profiles both define `Development`. Debug builds also load the API User Secrets explicitly, so pressing F5 remains independent from the IDE's selected launch profile. Release builds never use this fallback and must receive configuration from the deployment environment or secret manager.
+
 ## Frontend
 
 ```powershell

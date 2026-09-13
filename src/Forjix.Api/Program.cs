@@ -8,6 +8,13 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+#if DEBUG
+// Visual Studio can start a project without applying launchSettings.json. In a Debug
+// build, load the developer's external secrets explicitly so local startup does not
+// depend on the selected IDE profile. Release builds never use this fallback.
+builder.Configuration.AddUserSecrets<Program>(optional: true);
+#endif
+
 builder.Host.UseSerilog((context, services, loggerConfiguration) => loggerConfiguration
     .ReadFrom.Configuration(context.Configuration)
     .ReadFrom.Services(services)
