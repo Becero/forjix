@@ -1,0 +1,12 @@
+:root {
+  --forjix-navy: #0b1424;
+  --forjix-orange: #ff6b35;
+  --forjix-orange-light: #ff8a61;
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  color: #111827;
+  background: #f4f6f9;
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; margin: 0; }
+button, input { font: inherit; }

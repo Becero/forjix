@@ -1,0 +1,9 @@
+.application-layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; background: #f4f6f9; }
+aside { padding: 30px 24px; color: #fff; background: var(--forjix-navy); }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .05em; }
+.brand span { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 7px; color: #fff; background: var(--forjix-orange); }
+aside p { margin-top: 38px; color: #92a0b6; font-size: .78rem; text-transform: uppercase; letter-spacing: .12em; }
+header { height: 72px; display: flex; align-items: center; padding: 0 32px; border-bottom: 1px solid #e1e6ee; background: #fff; font-weight: 800; }
+main { padding: 32px; }
+@media (max-width: 720px) { .application-layout { grid-template-columns: 1fr; } aside { display: none; } }
+

@@ -1,0 +1,11 @@
+@Forjix_Api_HostAddress = http://localhost:5224
+
+GET {{Forjix_Api_HostAddress}}/api/health
+Accept: application/json
+
+###
+
+GET {{Forjix_Api_HostAddress}}/openapi/v1.json
+Accept: application/json
+
+###
