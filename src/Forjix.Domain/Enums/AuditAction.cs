@@ -12,5 +12,7 @@ public enum AuditAction
     PermissionChanged = 7,
     StockMovementCreated = 8,
     SaleCreated = 9,
-    SaleCancelled = 10
+    SaleCancelled = 10,
+    CustomerCreated = 11,
+    CustomerUpdated = 12
 }

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -368,6 +369,19 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
 
         var adminB = await LoginAsync(client, TenantB, AdminEmail);
         Assert.Equal(HttpStatusCode.NotFound, (await AuthorizedGetAsync(client, $"/api/sales/{saleId}", adminB.AccessToken)).StatusCode);
+    }
+
+    [SqlFact]
+    public async Task CustomersSupportCrudAndRemainTenantIsolated()
+    {
+        using var client = Client(); var adminA = await LoginAsync(client, TenantA, AdminEmail);
+        var document = Random.Shared.NextInt64(10_000_000_000, 99_999_999_999).ToString(CultureInfo.InvariantCulture);
+        var create = await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/customers", adminA.AccessToken, new { name = "Cliente SQL", document, email = "cliente@teste.local", phone = "11999999999", notes = "Teste", isActive = true });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode); using var created = await ReadJsonAsync(create); var id = created.RootElement.GetProperty("id").GetGuid();
+        var update = await AuthorizedJsonAsync(client, HttpMethod.Put, $"/api/customers/{id}", adminA.AccessToken, new { name = "Cliente Atualizado", document, email = "cliente@teste.local", phone = "11999999999", notes = "Atualizado", isActive = false });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode); using var updated = await ReadJsonAsync(update); Assert.False(updated.RootElement.GetProperty("isActive").GetBoolean());
+        var adminB = await LoginAsync(client, TenantB, AdminEmail); using var listB = await ReadJsonAsync(await AuthorizedGetAsync(client, $"/api/customers?search={document}", adminB.AccessToken));
+        Assert.Equal(0, listB.RootElement.GetProperty("total").GetInt32());
     }
 
     private static string Password() =>

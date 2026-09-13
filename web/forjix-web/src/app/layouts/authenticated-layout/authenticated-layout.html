@@ -9,6 +9,7 @@
       <a *ngIf="can('stock.view')" routerLink="/app/inventory" routerLinkActive="active"><b>↕</b>Estoque</a>
       <a *ngIf="can('sales.create')" routerLink="/app/pos" routerLinkActive="active"><b>▤</b>Frente de caixa</a>
       <a *ngIf="can('sales.view')" routerLink="/app/sales" routerLinkActive="active"><b>◷</b>Vendas</a>
+      <a *ngIf="can('customers.view')" routerLink="/app/customers" routerLinkActive="active"><b>♙</b>Clientes</a>
       <a class="disabled"><b>▥</b>Relatórios <em>Em breve</em></a>
       <label>ADMINISTRAÇÃO</label>
       <a *ngIf="can('administration.users.view')" routerLink="/app/users" routerLinkActive="active"><b>♟</b>Usuários</a>

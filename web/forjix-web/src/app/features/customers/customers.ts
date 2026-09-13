@@ -1,0 +1,11 @@
+import { CommonModule } from '@angular/common';
+import { Component, inject, signal } from '@angular/core';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { apiError } from '../../core/api/api-error';
+import { Customer, CustomersApiService } from '../../core/api/customers-api.service';
+import { AuthSessionStore } from '../../core/auth/auth-session.store';
+@Component({selector:'app-customers',imports:[CommonModule,ReactiveFormsModule],templateUrl:'./customers.html'}) export class Customers {
+ private readonly api=inject(CustomersApiService); private readonly context=inject(AuthSessionStore).context; readonly items=signal<Customer[]>([]); readonly total=signal(0); readonly editing=signal<Customer|null>(null); readonly modal=signal(false); readonly error=signal(''); readonly canManage=this.context()?.permissions.includes('customers.manage')??false;
+ readonly filters=new FormGroup({search:new FormControl('',{nonNullable:true}),isActive:new FormControl('',{nonNullable:true}),page:new FormControl(1,{nonNullable:true}),pageSize:new FormControl(20,{nonNullable:true})}); readonly form=new FormGroup({name:new FormControl('',{nonNullable:true,validators:Validators.required}),document:new FormControl('',{nonNullable:true}),email:new FormControl('',{nonNullable:true,validators:Validators.email}),phone:new FormControl('',{nonNullable:true}),notes:new FormControl('',{nonNullable:true}),isActive:new FormControl(true,{nonNullable:true})});
+ constructor(){this.load();} load(){this.api.list(this.filters.getRawValue()).subscribe({next:r=>{this.items.set(r.items);this.total.set(r.total)},error:e=>this.error.set(apiError(e))});} open(item?:Customer){this.editing.set(item??null);this.form.reset({name:item?.name??'',document:item?.document??'',email:item?.email??'',phone:item?.phone??'',notes:item?.notes??'',isActive:item?.isActive??true});this.error.set('');this.modal.set(true);} save(){if(this.form.invalid){this.error.set('Revise os campos informados.');return;}const body=this.form.getRawValue();const call=this.editing()?this.api.update(this.editing()!.id,body):this.api.create(body);call.subscribe({next:()=>{this.modal.set(false);this.load()},error:e=>this.error.set(apiError(e))});} page(d:number){this.filters.controls.page.setValue(this.filters.controls.page.value+d);this.load();}
+}

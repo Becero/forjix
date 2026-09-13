@@ -1,0 +1,24 @@
+using System.Net.Mail;
+using System.Text.Json;
+using Forjix.Application.Abstractions.Customers;
+using Forjix.Application.Abstractions.Identity;
+using Forjix.Application.Abstractions.Tenancy;
+using Forjix.Application.Common;
+using Forjix.Domain.Entities.Audit;
+using Forjix.Domain.Entities.Customers;
+using Forjix.Domain.Enums;
+
+namespace Forjix.Application.Features.Customers;
+
+internal sealed class CustomerService(ITenantDatabaseResolver tenantResolver, ICustomerStoreFactory storeFactory, ICurrentUser currentUser, TimeProvider timeProvider) : ICustomerService
+{
+    public async Task<PagedCustomers> GetAsync(string? search, bool? isActive, int page, int pageSize, CancellationToken cancellationToken = default) { page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100); var store = await StoreAsync(cancellationToken); await using (store) { var result = await store.GetAsync(Clean(search), isActive, page, pageSize, cancellationToken); return new(result.Items, page, pageSize, result.Total); } }
+    public async Task<CustomerItem> CreateAsync(SaveCustomerRequest request, CancellationToken cancellationToken = default) { var data = Validate(request); var store = await StoreAsync(cancellationToken); await using (store) { if (data.Document is not null && await store.DocumentExistsAsync(data.Document, null, cancellationToken)) throw new ResourceConflictException("Já existe um cliente com este documento."); var now = timeProvider.GetUtcNow(); var entity = new Customer { Id = Guid.NewGuid(), Name = data.Name, Document = data.Document, Email = data.Email, Phone = data.Phone, Notes = data.Notes, IsActive = request.IsActive, CreatedAt = now, UpdatedAt = now }; return await store.SaveAsync(entity, Audit(AuditAction.CustomerCreated, entity.Id, new { entity.Name, entity.Document }, now), cancellationToken); } }
+    public async Task<CustomerItem> UpdateAsync(Guid id, SaveCustomerRequest request, CancellationToken cancellationToken = default) { var data = Validate(request); var store = await StoreAsync(cancellationToken); await using (store) { var entity = await store.FindAsync(id, cancellationToken) ?? throw new ResourceNotFoundException("Cliente não encontrado."); if (data.Document is not null && await store.DocumentExistsAsync(data.Document, id, cancellationToken)) throw new ResourceConflictException("Já existe um cliente com este documento."); entity.Name = data.Name; entity.Document = data.Document; entity.Email = data.Email; entity.Phone = data.Phone; entity.Notes = data.Notes; entity.IsActive = request.IsActive; entity.UpdatedAt = timeProvider.GetUtcNow(); return await store.SaveAsync(entity, Audit(AuditAction.CustomerUpdated, id, new { entity.Name, entity.IsActive }, entity.UpdatedAt), cancellationToken); } }
+    private async Task<ICustomerStore> StoreAsync(CancellationToken cancellationToken) { if (currentUser.TenantId is not { } tenantId) throw new ResourceNotFoundException("Tenant autenticado não encontrado."); var tenant = await tenantResolver.ResolveByTenantIdAsync(tenantId, cancellationToken) ?? throw new ResourceNotFoundException("Tenant autenticado não encontrado."); return storeFactory.Create(tenant); }
+    private AuditLog Audit(AuditAction action, Guid id, object data, DateTimeOffset now) => new() { UserId = currentUser.UserId, Action = action, EntityName = nameof(Customer), EntityId = id.ToString(), AfterData = JsonSerializer.Serialize(data), IpAddress = currentUser.IpAddress, CorrelationId = currentUser.CorrelationId, OccurredAt = now };
+    private static (string Name, string? Document, string? Email, string? Phone, string? Notes) Validate(SaveCustomerRequest request) { var name = Clean(request.Name); if (name is null || name.Length > 160) throw new RequestValidationException("Informe o nome do cliente com até 160 caracteres."); var document = Digits(request.Document); if (document is not null && document.Length is not (11 or 14)) throw new RequestValidationException("O documento deve possuir 11 ou 14 dígitos."); var email = Clean(request.Email); if (email is not null) { try { _ = new MailAddress(email); } catch (FormatException) { throw new RequestValidationException("E-mail inválido."); } } return (name, document, Limit(email, 254, "E-mail"), Limit(Clean(request.Phone), 30, "Telefone"), Limit(Clean(request.Notes), 1000, "Observações")); }
+    private static string? Digits(string? value) { var cleaned = Clean(value); return cleaned is null ? null : new string(cleaned.Where(char.IsDigit).ToArray()); }
+    private static string? Limit(string? value, int max, string field) { if (value?.Length > max) throw new RequestValidationException($"{field} deve ter no máximo {max} caracteres."); return value; }
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}

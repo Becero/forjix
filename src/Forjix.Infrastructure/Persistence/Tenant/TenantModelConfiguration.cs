@@ -1,5 +1,6 @@
 using Forjix.Domain.Entities.Audit;
 using Forjix.Domain.Entities.Catalog;
+using Forjix.Domain.Entities.Customers;
 using Forjix.Domain.Entities.Identity;
 using Forjix.Domain.Entities.Inventory;
 using Forjix.Domain.Entities.Sales;
@@ -173,5 +174,15 @@ internal static class TenantModelConfiguration
             entity.ToTable("SaleSequences");
             entity.HasKey(x => x.Date);
         });
+
+        modelBuilder.Entity<Customer>(entity =>
+        {
+            entity.ToTable("Customers"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(160).IsRequired(); entity.Property(x => x.Document).HasMaxLength(14);
+            entity.Property(x => x.Email).HasMaxLength(254); entity.Property(x => x.Phone).HasMaxLength(30); entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.HasIndex(x => x.Document).IsUnique().HasFilter("[Document] IS NOT NULL"); entity.HasIndex(x => x.Name);
+        });
+
+        modelBuilder.Entity<Sale>().HasOne(x => x.Customer).WithMany(x => x.Sales).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
     }
 }

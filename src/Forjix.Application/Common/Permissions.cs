@@ -20,6 +20,8 @@ public static class Permissions
     public const string SalesCancel = "sales.cancel";
     public const string SalesDiscount = "sales.discount";
     public const string ReportsView = "reports.view";
+    public const string CustomersView = "customers.view";
+    public const string CustomersManage = "customers.manage";
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -39,6 +41,8 @@ public static class Permissions
         SalesCancel,
         SalesDiscount,
         ReportsView
+        ,CustomersView,
+        CustomersManage
     ];
 
     public static readonly IReadOnlyList<Definition> Catalog =
@@ -58,6 +62,8 @@ public static class Permissions
         new(SalesCreate, "Realizar vendas", "Vendas"),
         new(SalesCancel, "Cancelar vendas", "Vendas"),
         new(SalesDiscount, "Conceder desconto", "Vendas"),
-        new(ReportsView, "Visualizar relatórios", "Relatórios")
+        new(ReportsView, "Visualizar relatórios", "Relatórios"),
+        new(CustomersView, "Visualizar clientes", "Clientes"),
+        new(CustomersManage, "Gerenciar clientes", "Clientes")
     ];
 }

@@ -1,4 +1,5 @@
 using Forjix.Domain.Entities.Identity;
+using Forjix.Domain.Entities.Customers;
 using Forjix.Domain.Enums;
 
 namespace Forjix.Domain.Entities.Sales;
@@ -21,6 +22,7 @@ public sealed class Sale
     public string? CancellationReason { get; private set; }
     public byte[] RowVersion { get; set; } = [];
     public User User { get; set; } = null!;
+    public Customer? Customer { get; set; }
     public ICollection<SaleItem> Items { get; set; } = [];
 
     public void Cancel(Guid userId, string reason, DateTimeOffset now)
