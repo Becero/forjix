@@ -59,7 +59,7 @@ internal sealed class ManagementStore(TenantDbContext db) : IManagementStore
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<List<AuditItem>> GetAuditAsync(Guid? userId, string? action, string? entity, DateTimeOffset? from, DateTimeOffset? toDate, CancellationToken cancellationToken)
+    public async Task<(List<AuditItem> Items, int Total)> GetAuditAsync(Guid? userId, string? action, string? entity, DateTimeOffset? from, DateTimeOffset? toDate, int page, int pageSize, CancellationToken cancellationToken)
     {
         var query = db.AuditLogs.AsNoTracking().AsQueryable();
         if (userId.HasValue) query = query.Where(x => x.UserId == userId);
@@ -68,11 +68,14 @@ internal sealed class ManagementStore(TenantDbContext db) : IManagementStore
         if (from.HasValue) query = query.Where(x => x.OccurredAt >= from);
         if (toDate.HasValue) query = query.Where(x => x.OccurredAt <= toDate);
 
-        return await (from log in query
-                      join user in db.Users.AsNoTracking() on log.UserId equals user.Id into users
-                      from user in users.DefaultIfEmpty()
-                      orderby log.OccurredAt descending
-                      select new AuditItem(log.Id, log.OccurredAt, user == null ? null : user.Name, log.Action.ToString(), log.EntityName, log.EntityId, log.AfterData)).Take(500).ToListAsync(cancellationToken);
+        var total = await query.CountAsync(cancellationToken);
+        var items = await (from log in query
+                           join user in db.Users.AsNoTracking() on log.UserId equals user.Id into users
+                           from user in users.DefaultIfEmpty()
+                           orderby log.OccurredAt descending
+                           select new AuditItem(log.Id, log.OccurredAt, user == null ? null : user.Name, log.Action.ToString(), log.EntityName, log.EntityId, log.AfterData))
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        return (items, total);
     }
 
     public Task<List<Category>> GetCategoriesAsync(bool includeInactive, CancellationToken cancellationToken) => db.Categories.AsNoTracking().Where(x => includeInactive || x.IsActive).OrderBy(x => x.Name).ToListAsync(cancellationToken);
@@ -81,13 +84,15 @@ internal sealed class ManagementStore(TenantDbContext db) : IManagementStore
     public Task AddCategoryAsync(Category category, AuditLog audit, CancellationToken cancellationToken) => AddAndAuditAsync(category, audit, cancellationToken);
     public Task SaveCategoryAsync(Category category, AuditLog audit, CancellationToken cancellationToken) => AuditAndSaveAsync(audit, cancellationToken);
 
-    public Task<List<Product>> GetProductsAsync(string? search, Guid? categoryId, bool? isActive, CancellationToken cancellationToken)
+    public async Task<(List<Product> Items, int Total)> GetProductsAsync(string? search, Guid? categoryId, bool? isActive, int page, int pageSize, CancellationToken cancellationToken)
     {
         var query = db.Products.AsNoTracking().Include(x => x.Category).AsQueryable();
         if (!string.IsNullOrWhiteSpace(search)) query = query.Where(x => x.Name.Contains(search) || x.Sku.Contains(search) || (x.Barcode != null && x.Barcode.Contains(search)));
         if (categoryId.HasValue) query = query.Where(x => x.CategoryId == categoryId);
         if (isActive.HasValue) query = query.Where(x => x.IsActive == isActive);
-        return query.OrderBy(x => x.Name).ToListAsync(cancellationToken);
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query.OrderBy(x => x.Name).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        return (items, total);
     }
 
     public Task<Product?> GetProductAsync(Guid id, CancellationToken cancellationToken) => db.Products.Include(x => x.Category).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);

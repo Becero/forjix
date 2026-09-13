@@ -49,7 +49,8 @@ These rules apply to the entire repository.
 
 ## Scope control
 
-- The completed phases include administration, audit, categories, products and inventory movements. Sales, checkout, fiscal features, payment providers, mobile and multi-store behavior remain out of scope until explicitly requested.
+- Commercial V1 includes administration, audit, catalog, inventory, customers, suppliers, purchases, sales, POS, cash, dashboard, reports and tenant settings.
+- Fiscal documents, payment-provider/TEF integrations, hardware fiscal, mobile applications and multi-store behavior remain out of scope until explicitly requested.
 - External integrations must use internal contracts plus adapters and provider resolution; never customer-specific conditionals.
 
 ## Regression gate

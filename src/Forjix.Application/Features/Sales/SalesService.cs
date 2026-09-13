@@ -26,6 +26,7 @@ internal sealed class SalesService(ITenantDatabaseResolver tenantResolver, ISale
 
     public async Task<PagedSales> GetAsync(DateTimeOffset? from, DateTimeOffset? through, string? status, int page, int pageSize, CancellationToken cancellationToken = default)
     {
+        if (through.HasValue && through.Value.TimeOfDay == TimeSpan.Zero) through = through.Value.AddDays(1).AddTicks(-1);
         if (from > through) throw new RequestValidationException("O período inicial deve ser anterior ao final.");
         SaleStatus? parsed = null;
         if (!string.IsNullOrWhiteSpace(status))

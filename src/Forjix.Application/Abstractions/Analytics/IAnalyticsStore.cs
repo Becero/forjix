@@ -1,1 +1,3 @@
-using Forjix.Application.Abstractions.Tenancy;using Forjix.Application.Features.Analytics;namespace Forjix.Application.Abstractions.Analytics;public interface IAnalyticsStoreFactory{IAnalyticsStore Create(ResolvedTenantDatabase tenant);}public interface IAnalyticsStore:IAsyncDisposable{Task<DashboardView>DashboardAsync(DateTimeOffset now,CancellationToken ct);Task<ReportView>ReportAsync(DateTimeOffset from,DateTimeOffset through,CancellationToken ct);}
+using Forjix.Application.Abstractions.Tenancy;
+using Forjix.Application.Features.Analytics;
+namespace Forjix.Application.Abstractions.Analytics; public interface IAnalyticsStoreFactory { IAnalyticsStore Create(ResolvedTenantDatabase tenant); } public interface IAnalyticsStore : IAsyncDisposable { Task<DashboardView> DashboardAsync(DateTimeOffset now, CancellationToken ct); Task<ReportView> ReportAsync(DateTimeOffset from, DateTimeOffset through, CancellationToken ct); }

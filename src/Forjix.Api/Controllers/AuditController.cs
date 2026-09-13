@@ -9,6 +9,6 @@ namespace Forjix.Api.Controllers;
 public sealed class AuditController(IManagementService service) : ControllerBase
 {
     [HttpGet, RequirePermission(Permissions.AuditView)]
-    public async Task<ActionResult<IReadOnlyList<AuditItem>>> Get(Guid? userId, string? action, string? entity, DateTimeOffset? from, [FromQuery(Name = "to")] DateTimeOffset? toDate, CancellationToken cancellationToken) =>
-        Ok(await service.GetAuditAsync(userId, action, entity, from, toDate, cancellationToken));
+    public async Task<ActionResult<PagedAudit>> Get(Guid? userId, string? action, string? entity, DateTimeOffset? from, [FromQuery(Name = "to")] DateTimeOffset? toDate, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default) =>
+        Ok(await service.GetAuditAsync(userId, action, entity, from, toDate, page, pageSize, cancellationToken));
 }

@@ -1,5 +1,5 @@
-using Forjix.Domain.Entities.Identity;
 using Forjix.Domain.Entities.Customers;
+using Forjix.Domain.Entities.Identity;
 using Forjix.Domain.Enums;
 
 namespace Forjix.Domain.Entities.Sales;

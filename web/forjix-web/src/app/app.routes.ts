@@ -29,8 +29,7 @@ export const routes: Routes = [
       { path: 'settings', canActivate: [permissionGuard], data: { permission: 'settings.view' }, loadComponent: () => import('./features/settings/settings').then(module => module.Settings) },
       { path: 'users', canActivate: [permissionGuard], data: { permission: 'administration.users.view' }, loadComponent: () => import('./features/users/users').then(module => module.Users) },
       { path: 'roles', canActivate: [permissionGuard], data: { permission: 'administration.roles.view' }, loadComponent: () => import('./features/roles/roles').then(module => module.Roles) },
-      { path: 'audit', canActivate: [permissionGuard], data: { permission: 'audit.view' }, loadComponent: () => import('./features/audit/audit').then(module => module.Audit) },
-      { path: 'coming-soon', loadComponent: () => import('./features/coming-soon/coming-soon').then(module => module.ComingSoon) }
+      { path: 'audit', canActivate: [permissionGuard], data: { permission: 'audit.view' }, loadComponent: () => import('./features/audit/audit').then(module => module.Audit) }
     ]
   },
   { path: '', pathMatch: 'full', redirectTo: 'login' },

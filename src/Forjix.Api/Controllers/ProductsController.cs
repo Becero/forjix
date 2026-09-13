@@ -9,7 +9,7 @@ namespace Forjix.Api.Controllers;
 public sealed class ProductsController(IManagementService service) : ControllerBase
 {
     [HttpGet, RequirePermission(Permissions.ProductsView)]
-    public async Task<ActionResult<IReadOnlyList<ProductItem>>> Get(string? search, Guid? categoryId, bool? isActive, CancellationToken cancellationToken) => Ok(await service.GetProductsAsync(search, categoryId, isActive, cancellationToken));
+    public async Task<ActionResult<PagedProducts>> Get(string? search, Guid? categoryId, bool? isActive, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default) => Ok(await service.GetProductsAsync(search, categoryId, isActive, page, pageSize, cancellationToken));
 
     [HttpPost, RequirePermission(Permissions.ProductsManage)]
     public async Task<ActionResult<ProductItem>> Post(SaveProductRequest request, CancellationToken cancellationToken) => StatusCode(StatusCodes.Status201Created, await service.CreateProductAsync(request, cancellationToken));

@@ -1,7 +1,7 @@
 using Forjix.Application.Abstractions.Customers;
 using Forjix.Application.Abstractions.Tenancy;
-using Forjix.Application.Features.Customers;
 using Forjix.Application.Common;
+using Forjix.Application.Features.Customers;
 using Forjix.Domain.Entities.Audit;
 using Forjix.Domain.Entities.Customers;
 using Forjix.Infrastructure.Persistence.Tenant;

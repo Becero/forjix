@@ -48,6 +48,6 @@ Customer differences must use plan features, tenant feature overrides, settings 
 
 ## Current scope
 
-The platform currently includes functional identity and access, both DbContexts, trusted tenancy resolution, API authentication, an authenticated Angular shell, user and access-group administration, audit consultation, categories, products, inventory and atomic stock movements. Every operational request resolves the tenant from the authenticated identity.
+Commercial V1 includes identity and access, both DbContexts, trusted tenancy resolution, the authenticated Angular shell, administration, audit, catalog, inventory, customers, suppliers, purchases, sales/POS, cash register, calculated dashboard, on-demand reports and safe tenant settings. Every operational request resolves the tenant from the authenticated identity and operational records remain in that tenant's physical database.
 
-Sales, checkout, payments, commercial reports, fiscal capabilities, external providers, mobile and multi-store behavior are not part of this delivery. Their menu entries are explicitly marked as future modules.
+Fiscal capabilities, real payment/TEF providers, fiscal hardware, mobile clients and multi-store behavior are deliberately outside V1. Future differences must enter through features, settings or providers rather than customer-specific branches.

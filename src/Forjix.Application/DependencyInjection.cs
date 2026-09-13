@@ -1,9 +1,9 @@
 using Forjix.Application.Abstractions.Authorization;
-using Forjix.Application.Features.Authentication;
 using Forjix.Application.Features.Analytics;
+using Forjix.Application.Features.Authentication;
+using Forjix.Application.Features.Authorization;
 using Forjix.Application.Features.Cash;
 using Forjix.Application.Features.Customers;
-using Forjix.Application.Features.Authorization;
 using Forjix.Application.Features.Inventory;
 using Forjix.Application.Features.Management;
 using Forjix.Application.Features.Purchases;

@@ -114,11 +114,14 @@ internal sealed class ManagementService(
     public Task<RoleItem> UpdateRoleAsync(Guid id, SaveRoleRequest request, CancellationToken cancellationToken = default) =>
         SaveRoleAsync(id, request, cancellationToken);
 
-    public async Task<IReadOnlyList<AuditItem>> GetAuditAsync(Guid? userId, string? action, string? entity, DateTimeOffset? from, DateTimeOffset? toDate, CancellationToken cancellationToken = default)
+    public async Task<PagedAudit> GetAuditAsync(Guid? userId, string? action, string? entity, DateTimeOffset? from, DateTimeOffset? toDate, int page, int pageSize, CancellationToken cancellationToken = default)
     {
         if (from > toDate) throw new RequestValidationException("O período inicial deve ser anterior ao período final.");
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
         await using var store = await StoreAsync(cancellationToken);
-        return await store.GetAuditAsync(userId, Clean(action), Clean(entity), from, toDate, cancellationToken);
+        var result = await store.GetAuditAsync(userId, Clean(action), Clean(entity), from, toDate, page, pageSize, cancellationToken);
+        return new(result.Items, page, pageSize, result.Total);
     }
 
     public async Task<IReadOnlyList<CategoryItem>> GetCategoriesAsync(bool includeInactive, CancellationToken cancellationToken = default)
@@ -143,10 +146,13 @@ internal sealed class ManagementService(
         return MapCategory(category);
     }
 
-    public async Task<IReadOnlyList<ProductItem>> GetProductsAsync(string? search, Guid? categoryId, bool? isActive, CancellationToken cancellationToken = default)
+    public async Task<PagedProducts> GetProductsAsync(string? search, Guid? categoryId, bool? isActive, int page, int pageSize, CancellationToken cancellationToken = default)
     {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
         await using var store = await StoreAsync(cancellationToken);
-        return (await store.GetProductsAsync(Clean(search), categoryId, isActive, cancellationToken)).Select(MapProduct).ToArray();
+        var result = await store.GetProductsAsync(Clean(search), categoryId, isActive, page, pageSize, cancellationToken);
+        return new(result.Items.Select(MapProduct).ToArray(), page, pageSize, result.Total);
     }
 
     public Task<ProductItem> CreateProductAsync(SaveProductRequest request, CancellationToken cancellationToken = default) =>

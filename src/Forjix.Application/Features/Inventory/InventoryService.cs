@@ -70,6 +70,7 @@ internal sealed class InventoryService(
         {
             var inventory = await store.GetByProductAsync(productId, cancellationToken) ?? throw new ResourceNotFoundException("Estoque do produto não encontrado.");
             if (!inventory.Product.IsActive) throw new RequestValidationException("Produto inativo não pode receber movimentações.");
+            if (!inventory.RowVersion.SequenceEqual(expectedRowVersion)) throw new ResourceConflictException("O estoque foi movimentado por outro usuário. Atualize a página e tente novamente.");
             var allowNegative = tenant.Settings.TryGetValue(TenantSettingKeys.AllowNegativeStock, out var setting) && bool.TryParse(setting, out var enabled) ? enabled : TenantSettingDefaults.AllowNegativeStock;
             var now = timeProvider.GetUtcNow();
             InventoryChange change;

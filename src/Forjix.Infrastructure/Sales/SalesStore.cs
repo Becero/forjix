@@ -46,9 +46,16 @@ internal sealed class SalesStore(TenantDbContext db) : ISalesStore
 
             var sale = new Sale
             {
-                Id = Guid.NewGuid(), Number = $"VD-{date:yyyyMMdd}-{sequence.LastValue:00000}", IdempotencyKey = idempotencyKey,
-                Subtotal = subtotal, Discount = discount, Total = subtotal - discount, PaymentMethod = paymentMethod,
-                UserId = userId, CustomerId = customerId, CreatedAt = now
+                Id = Guid.NewGuid(),
+                Number = $"VD-{date:yyyyMMdd}-{sequence.LastValue:00000}",
+                IdempotencyKey = idempotencyKey,
+                Subtotal = subtotal,
+                Discount = discount,
+                Total = subtotal - discount,
+                PaymentMethod = paymentMethod,
+                UserId = userId,
+                CustomerId = customerId,
+                CreatedAt = now
             };
             foreach (var request in items)
             {

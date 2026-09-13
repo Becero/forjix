@@ -1,6 +1,10 @@
 using Forjix.Application.Common;
+using Forjix.Domain.Entities.Cash;
+using Forjix.Domain.Entities.Catalog;
 using Forjix.Domain.Entities.Identity;
+using Forjix.Domain.Entities.Inventory;
 using Forjix.Domain.Entities.Master;
+using Forjix.Domain.Entities.Sales;
 using Forjix.Domain.Enums;
 using Forjix.Infrastructure.Persistence.Master;
 using Forjix.Infrastructure.Persistence.Tenant;
@@ -216,6 +220,7 @@ static async Task ProvisionTenantAsync(
     await using var tenantDb = CreateTenantDbContext(tenantConnection);
     await tenantDb.Database.MigrateAsync();
     await SeedTenantIdentityAsync(tenantDb, definition, now);
+    if (definition.PlanCode == "development") await SeedCommercialDemoAsync(tenantDb, now);
 }
 
 static async Task SeedTenantIdentityAsync(
@@ -332,6 +337,86 @@ static async Task SeedTenantIdentityAsync(
         viewer.UpdatedAt = now;
     }
 
+    await db.SaveChangesAsync();
+}
+
+static async Task SeedCommercialDemoAsync(TenantDbContext db, DateTimeOffset now)
+{
+    var admin = await db.Users.SingleAsync(x => x.NormalizedEmail == "ADMIN@DEMO.COM");
+    var categoryDefinitions = new[]
+    {
+        (Name: "Alimentos", Description: "Mercearia e alimentos básicos"),
+        (Name: "Bebidas", Description: "Bebidas e itens refrigerados"),
+        (Name: "Higiene e limpeza", Description: "Cuidados pessoais e limpeza")
+    };
+    var categories = await db.Categories.ToDictionaryAsync(x => x.Name);
+    foreach (var definition in categoryDefinitions)
+    {
+        if (categories.ContainsKey(definition.Name)) continue;
+        var category = new Category { Id = Guid.NewGuid(), Name = definition.Name, Description = definition.Description, IsActive = true, CreatedAt = now, UpdatedAt = now };
+        db.Categories.Add(category);
+        categories.Add(category.Name, category);
+    }
+    await db.SaveChangesAsync();
+
+    var productDefinitions = new[]
+    {
+        ("Arroz Tipo 1 - 5 kg", "ALI-001", "7891000000011", "Alimentos", 27.90m, 19.90m, 8m, 24m),
+        ("Feijão Carioca - 1 kg", "ALI-002", "7891000000028", "Alimentos", 9.50m, 6.50m, 10m, 7m),
+        ("Água Mineral - 500 ml", "BEB-001", "7891000000035", "Bebidas", 3.00m, 1.20m, 12m, 48m),
+        ("Suco Integral - 1L", "BEB-002", "7891000000042", "Bebidas", 13.90m, 8.90m, 5m, 16m),
+        ("Detergente Neutro", "HIG-001", "7891000000059", "Higiene e limpeza", 3.50m, 1.80m, 10m, 32m),
+        ("Papel Higiênico - 12 rolos", "HIG-002", "7891000000066", "Higiene e limpeza", 19.90m, 12.50m, 6m, 5m)
+    };
+    var existing = await db.Products.Include(x => x.Inventory).ToDictionaryAsync(x => x.Sku);
+    foreach (var definition in productDefinitions)
+    {
+        if (!existing.TryGetValue(definition.Item2, out var product))
+        {
+            product = new Product { Id = Guid.NewGuid(), CategoryId = categories[definition.Item4].Id, Name = definition.Item1, Sku = definition.Item2, Barcode = definition.Item3, SalePrice = definition.Item5, CostPrice = definition.Item6, MinimumStock = definition.Item7, IsActive = true, CreatedAt = now, UpdatedAt = now };
+            product.Inventory = Forjix.Domain.Entities.Inventory.Inventory.Create(product.Id, now);
+            db.Products.Add(product);
+            existing.Add(product.Sku, product);
+        }
+    }
+    await db.SaveChangesAsync();
+
+    foreach (var definition in productDefinitions)
+    {
+        var product = existing[definition.Item2];
+        if (await db.InventoryMovements.AnyAsync(x => x.ProductId == product.Id)) continue;
+        var change = product.Inventory.ApplyMovement(InventoryMovementType.StockEntry, definition.Item8, false, now.AddDays(-7));
+        db.InventoryMovements.Add(new InventoryMovement { InventoryId = product.Inventory.Id, ProductId = product.Id, Type = InventoryMovementType.StockEntry, Quantity = definition.Item8, PreviousQuantity = change.PreviousQuantity, NewQuantity = change.NewQuantity, Reason = "Estoque inicial demonstrativo", ReferenceType = "DevelopmentSeed", UserId = admin.Id, CreatedAt = now.AddDays(-7) });
+    }
+    await db.SaveChangesAsync();
+
+    if (await db.Sales.AnyAsync()) return;
+    var register = new CashRegister { Id = Guid.NewGuid(), Name = "Caixa principal" };
+    var session = new CashSession { Id = Guid.NewGuid(), CashRegisterId = register.Id, OpenedByUserId = admin.Id, OpenedAt = now.AddHours(-4), OpeningAmount = 100m };
+    session.Movements.Add(new CashMovement { Type = CashMovementType.Opening, Amount = 100m, Reason = "Abertura demonstrativa", UserId = admin.Id, CreatedAt = session.OpenedAt });
+    register.Sessions.Add(session);
+    db.CashRegisters.Add(register);
+
+    var demoSales = new[]
+    {
+        (Product: existing["ALI-001"], Quantity: 2m, Payment: PaymentMethod.Pix, Minutes: 150),
+        (Product: existing["BEB-001"], Quantity: 4m, Payment: PaymentMethod.Cash, Minutes: 85),
+        (Product: existing["HIG-001"], Quantity: 3m, Payment: PaymentMethod.DebitCard, Minutes: 25)
+    };
+    var sequence = 0;
+    foreach (var demo in demoSales)
+    {
+        sequence++;
+        var createdAt = now.AddMinutes(-demo.Minutes);
+        var total = demo.Product.SalePrice * demo.Quantity;
+        var sale = new Sale { Id = Guid.NewGuid(), Number = $"VD-{createdAt:yyyyMMdd}-{sequence:00000}", IdempotencyKey = $"development-seed-{sequence}", Subtotal = total, Total = total, PaymentMethod = demo.Payment, UserId = admin.Id, CreatedAt = createdAt };
+        sale.Items.Add(new SaleItem { Id = Guid.NewGuid(), ProductId = demo.Product.Id, ProductName = demo.Product.Name, Sku = demo.Product.Sku, Quantity = demo.Quantity, UnitPrice = demo.Product.SalePrice, UnitCost = demo.Product.CostPrice, Total = total });
+        var change = demo.Product.Inventory.ApplyMovement(InventoryMovementType.Sale, demo.Quantity, false, createdAt);
+        db.InventoryMovements.Add(new InventoryMovement { InventoryId = demo.Product.Inventory.Id, ProductId = demo.Product.Id, Type = InventoryMovementType.Sale, Quantity = demo.Quantity, PreviousQuantity = change.PreviousQuantity, NewQuantity = change.NewQuantity, Reason = "Venda demonstrativa", ReferenceType = nameof(Sale), ReferenceId = sale.Id.ToString(), UserId = admin.Id, CreatedAt = createdAt });
+        if (demo.Payment == PaymentMethod.Cash) session.Movements.Add(new CashMovement { Type = CashMovementType.Sale, Amount = total, Reason = sale.Number, UserId = admin.Id, SaleId = sale.Id, CreatedAt = createdAt });
+        db.Sales.Add(sale);
+    }
+    db.SaleSequences.Add(new SaleSequence { Date = DateOnly.FromDateTime(now.UtcDateTime), LastValue = sequence });
     await db.SaveChangesAsync();
 }
 

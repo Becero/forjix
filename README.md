@@ -2,7 +2,7 @@
 
 Commercial management platform for small and medium businesses. This repository is independent from the institutional website and the former demonstration application.
 
-The current delivery implements the multi-tenant identity foundation and the first operational modules: real login, JWT access tokens, rotating refresh tokens, permission policies, user and access-group management, audit trails, categories, products, inventory balances and atomic stock movements. It includes controlled provisioning and a real SQL Server 2022 regression gate. Sales, checkout, payments, commercial reports and external integrations remain reserved for later phases.
+The current delivery is the first complete commercial V1: multi-tenant identity, users and access groups, audit, catalog, inventory, customers, suppliers, purchases, sales, point of sale, cash register, dashboard, reports and tenant settings. It includes controlled provisioning, an idempotent Development demo and a real SQL Server regression gate. Fiscal, payment-provider, multi-store and mobile integrations remain reserved for later phases.
 
 ## Stack
 
@@ -35,7 +35,7 @@ npm ci
 npm run build
 ```
 
-The API exposes health endpoints at `/api/health` and `/api/health/live`. Authentication is available at `/api/auth/login`, `/api/auth/refresh`, `/api/auth/logout`, and the authenticated context at `/api/me`. Authenticated management endpoints are grouped under `/api/users`, `/api/roles`, `/api/audit`, `/api/categories`, `/api/products` and `/api/inventory`. In Development, OpenAPI is available at `/openapi/v1.json`.
+The API exposes health endpoints at `/api/health` and `/api/health/live`. Authentication is available at `/api/auth/login`, `/api/auth/refresh`, `/api/auth/logout`, and the authenticated context at `/api/me`. Operational endpoints are grouped under `/api/products`, `/api/inventory`, `/api/customers`, `/api/suppliers`, `/api/purchases`, `/api/sales`, `/api/cash`, `/api/dashboard`, `/api/reports` and `/api/settings`. In Development, OpenAPI is available at `/openapi/v1.json`.
 
 ## Continuous integration
 

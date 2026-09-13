@@ -63,11 +63,17 @@ internal sealed class AnalyticsStore(TenantDbContext db) : IAnalyticsStore
         var inventory = stockRows.Select(x => new InventoryReportItem(x.Product, x.Sku, x.Quantity, x.MinimumStock, x.Quantity * x.CostPrice,
             x.Quantity < 0 ? "Negative" : x.Quantity == 0 ? "OutOfStock" : x.Quantity <= x.MinimumStock ? "Low" : "Normal")).ToList();
         var low = stockRows.Where(x => x.Quantity <= x.MinimumStock).Select(x => new LowStockItem(x.ProductId, x.Product, x.Sku, x.Quantity, x.MinimumStock)).ToList();
-        var purchaseRows = await db.Purchases.AsNoTracking().Where(x => x.Status == PurchaseStatus.Received && x.ReceivedAt >= from && x.ReceivedAt <= through).Select(x => x.Total).ToListAsync(ct);
-        var purchaseTotal = purchaseRows.Sum();
-        var purchaseCount = purchaseRows.Count;
-        var movementCount = await db.InventoryMovements.CountAsync(x => x.CreatedAt >= from && x.CreatedAt <= through, ct);
-        return new(from, through, revenue, count, count == 0 ? 0 : revenue / count, purchaseTotal, purchaseCount, movementCount, payments, top, inventory, low);
+        var purchaseQuery = db.Purchases.AsNoTracking().Where(x => x.CreatedAt >= from && x.CreatedAt <= through);
+        var receivedPurchaseTotals = await db.Purchases.AsNoTracking().Where(x => x.Status == PurchaseStatus.Received && x.ReceivedAt >= from && x.ReceivedAt <= through).Select(x => x.Total).ToListAsync(ct);
+        var purchaseRows = await purchaseQuery
+            .OrderByDescending(x => x.CreatedAt).Select(x => new { x.Number, Supplier = x.Supplier.Name, x.Total, x.Status, x.CreatedAt, x.ReceivedAt }).Take(100).ToListAsync(ct);
+        var purchases = purchaseRows.Select(x => new PurchaseReportItem(x.Number, x.Supplier, x.Total, x.Status.ToString(), x.CreatedAt, x.ReceivedAt)).ToList();
+        var movementQuery = db.InventoryMovements.AsNoTracking().Where(x => x.CreatedAt >= from && x.CreatedAt <= through);
+        var movementCount = await movementQuery.CountAsync(ct);
+        var movementRows = await movementQuery
+            .OrderByDescending(x => x.CreatedAt).Select(x => new { x.CreatedAt, Product = x.Product.Name, x.Product.Sku, x.Type, x.Quantity, x.PreviousQuantity, x.NewQuantity, UserName = x.User.Name, x.Reason }).Take(100).ToListAsync(ct);
+        var movements = movementRows.Select(x => new StockMovementReportItem(x.CreatedAt, x.Product, x.Sku, x.Type.ToString(), x.Quantity, x.PreviousQuantity, x.NewQuantity, x.UserName, x.Reason)).ToList();
+        return new(from, through, revenue, count, count == 0 ? 0 : revenue / count, receivedPurchaseTotals.Sum(), receivedPurchaseTotals.Count, movementCount, payments, top, inventory, low, purchases, movements);
     }
 
     public ValueTask DisposeAsync() => db.DisposeAsync();

@@ -28,14 +28,14 @@ public interface IManagementStore : IAsyncDisposable
     Task AddRoleAsync(Role role, IReadOnlyCollection<string> permissions, AuditLog audit, CancellationToken cancellationToken);
     Task SaveRoleAsync(Role role, IReadOnlyCollection<string> permissions, AuditLog audit, CancellationToken cancellationToken);
 
-    Task<List<AuditItem>> GetAuditAsync(Guid? userId, string? action, string? entity, DateTimeOffset? from, DateTimeOffset? toDate, CancellationToken cancellationToken);
+    Task<(List<AuditItem> Items, int Total)> GetAuditAsync(Guid? userId, string? action, string? entity, DateTimeOffset? from, DateTimeOffset? toDate, int page, int pageSize, CancellationToken cancellationToken);
     Task<List<Category>> GetCategoriesAsync(bool includeInactive, CancellationToken cancellationToken);
     Task<Category?> GetCategoryAsync(Guid id, CancellationToken cancellationToken);
     Task<bool> CategoryNameExistsAsync(string name, Guid? exceptId, CancellationToken cancellationToken);
     Task AddCategoryAsync(Category category, AuditLog audit, CancellationToken cancellationToken);
     Task SaveCategoryAsync(Category category, AuditLog audit, CancellationToken cancellationToken);
 
-    Task<List<Product>> GetProductsAsync(string? search, Guid? categoryId, bool? isActive, CancellationToken cancellationToken);
+    Task<(List<Product> Items, int Total)> GetProductsAsync(string? search, Guid? categoryId, bool? isActive, int page, int pageSize, CancellationToken cancellationToken);
     Task<Product?> GetProductAsync(Guid id, CancellationToken cancellationToken);
     Task<bool> ProductSkuExistsAsync(string sku, Guid? exceptId, CancellationToken cancellationToken);
     Task<bool> ProductBarcodeExistsAsync(string barcode, Guid? exceptId, CancellationToken cancellationToken);

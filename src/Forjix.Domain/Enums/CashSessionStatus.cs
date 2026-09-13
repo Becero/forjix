@@ -1,1 +1,1 @@
-namespace Forjix.Domain.Enums; public enum CashSessionStatus { Open=0, Closed=1 }
+namespace Forjix.Domain.Enums; public enum CashSessionStatus { Open = 0, Closed = 1 }
