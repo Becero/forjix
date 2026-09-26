@@ -21,12 +21,15 @@ public static class DependencyInjection
         services.AddScoped<IPermissionChecker, PermissionChecker>();
         services.AddScoped<IManagementService, ManagementService>();
         services.AddScoped<IInventoryService, InventoryService>();
+        services.AddScoped<IStocktakeService, StocktakeService>();
         services.AddScoped<ISalesService, SalesService>();
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IPurchaseService, PurchaseService>();
         services.AddScoped<ICashService, CashService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddScoped<ISettingsService, SettingsService>();
+        services.AddScoped<Features.Financial.IFinancialService, Features.Financial.FinancialService>();
+        services.AddScoped<Features.Quotes.IQuoteService, Features.Quotes.QuoteService>();
         return services;
     }
 }

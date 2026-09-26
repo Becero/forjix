@@ -16,8 +16,11 @@ Documentação gerada por inspeção do código existente. Os documentos anterio
 10. [Módulos do sistema](09-modulos-do-sistema.md)
 11. [API e endpoints](10-api-endpoints.md)
 12. [Migrations e seed](11-migrations-e-seed.md)
-13. [Segurança](15-seguranca.md)
-14. [Roadmap técnico](18-roadmap-tecnico.md)
+13. [Financeiro V1: modelo, API, integrações e operação](12-financeiro.md)
+14. [Orçamentos V1](13-orcamentos.md)
+15. [Estoque Avançado / Inventário V1](14-estoque-avancado.md)
+16. [Segurança](15-seguranca.md)
+17. [Roadmap técnico](18-roadmap-tecnico.md)
 
 ## Escopo analisado
 
@@ -43,3 +46,11 @@ Arquivos gerados, artefatos de build (`bin`, `obj`, `node_modules`, `dist`), con
 - Contagens de testes são casos descobertos no código/runner e podem variar com teorias ou alterações futuras; testes SQL dependem de opt-in e infraestrutura externa.
 - “Implementado” indica código existente, não certificação de desempenho, segurança, conformidade fiscal ou prontidão comercial.
 - Os nomes de classes, modelos, controllers, permissões, tabelas e migrations citados foram cruzados com o código. Onde não havia evidência suficiente, o texto registra explicitamente a limitação em vez de inferir comportamento.
+
+## Orçamentos V1 — atualização de 26/09/2026
+
+O módulo comercial de orçamentos está implementado. A migration tenant `20260926144839_AddQuotesV1` acrescenta `Quotes`, `QuoteItems` e `QuoteSequences`, sete permissões `quotes.*` e os endpoints `/api/quotes`. Criação não movimenta estoque nem financeiro; conversão aprovada reutiliza a venda em transação única. Consulte [Orçamentos V1](13-orcamentos.md) para esquema, contratos, status, testes e limitações.
+
+## Estoque Avançado V1 — atualização de 26/09/2026
+
+Inventário físico implementado como `Stocktake`, preservando `Inventories` como saldo único. Migration `20260926150829_AddAdvancedInventoryV1` adiciona `Stocktakes`, `StocktakeItems`, `StocktakeSequences`, campos opcionais de motivo/observação em movimentos e sete permissões. Finalização incremental e transacional, com bloqueio de contagens desatualizadas. Alertas, histórico integrado, ajustes e relatórios disponíveis. Consulte [Estoque Avançado / Inventário V1](14-estoque-avancado.md) para contratos, regras, testes e limitações.

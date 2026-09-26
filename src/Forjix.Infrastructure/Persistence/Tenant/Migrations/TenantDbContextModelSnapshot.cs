@@ -319,6 +319,240 @@ namespace Forjix.Infrastructure.Persistence.Tenant.Migrations
                     b.ToTable("Customers", (string)null);
                 });
 
+            modelBuilder.Entity("Forjix.Domain.Entities.Financial.FinancialAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Document")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("FinancialCategoryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("InstallmentNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("IssueDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<decimal>("OpenAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("OriginalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly?>("PaymentDate")
+                        .HasColumnType("date");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TotalInstallments")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("DueDate");
+
+                    b.HasIndex("FinancialCategoryId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("GroupId", "InstallmentNumber")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "DueDate");
+
+                    b.ToTable((string)null);
+
+                    b.UseTpcMappingStrategy();
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Financial.FinancialCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Type", "Name")
+                        .IsUnique();
+
+                    b.ToTable("FinancialCategories", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_FinancialCategory_Type", "[Type] IN (0,1)");
+                        });
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Financial.FinancialPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AccountPayableId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AccountReceivableId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long?>("CashMovementId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Discount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("Interest")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateOnly>("PaymentDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("PaymentMethod")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Penalty")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PrincipalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long?>("ReversalCashMovementId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ReversalReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset?>("ReversedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ReversedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountPayableId");
+
+                    b.HasIndex("AccountReceivableId");
+
+                    b.HasIndex("CashMovementId")
+                        .IsUnique()
+                        .HasFilter("[CashMovementId] IS NOT NULL");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("ReversalCashMovementId")
+                        .IsUnique()
+                        .HasFilter("[ReversalCashMovementId] IS NOT NULL");
+
+                    b.HasIndex("ReversedByUserId");
+
+                    b.HasIndex("PaymentDate", "Type");
+
+                    b.ToTable("FinancialPayments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Payment_Account", "([Type] = 0 AND [AccountReceivableId] IS NOT NULL AND [AccountPayableId] IS NULL) OR ([Type] = 1 AND [AccountPayableId] IS NOT NULL AND [AccountReceivableId] IS NULL)");
+
+                            t.HasCheckConstraint("CK_Payment_Amounts", "[Amount] > 0 AND [PrincipalAmount] > 0 AND [Discount] >= 0 AND [Interest] >= 0 AND [Penalty] >= 0 AND [PrincipalAmount] = [Amount] + [Discount] - [Interest] - [Penalty]");
+
+                            t.HasCheckConstraint("CK_Payment_Method", "[PaymentMethod] IN (0,1,2,3)");
+                        });
+                });
+
             modelBuilder.Entity("Forjix.Domain.Entities.Identity.Permission", b =>
                 {
                     b.Property<Guid>("Id")
@@ -570,6 +804,10 @@ namespace Forjix.Infrastructure.Persistence.Tenant.Migrations
                         .HasPrecision(18, 3)
                         .HasColumnType("decimal(18,3)");
 
+                    b.Property<string>("Observation")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<decimal>("PreviousQuantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("decimal(18,3)");
@@ -584,6 +822,10 @@ namespace Forjix.Infrastructure.Persistence.Tenant.Migrations
                     b.Property<string>("Reason")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ReasonCode")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<string>("ReferenceId")
                         .HasMaxLength(100)
@@ -608,6 +850,141 @@ namespace Forjix.Infrastructure.Persistence.Tenant.Migrations
                     b.HasIndex("ProductId", "CreatedAt");
 
                     b.ToTable("InventoryMovements", (string)null);
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Inventory.Stocktake", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("OpenedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("OpenedAt");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("Status", "OpenedAt");
+
+                    b.ToTable("Stocktakes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Stocktake_Closed", "([Status] IN (0,1) AND [ClosedAt] IS NULL) OR ([Status] IN (2,3) AND [ClosedAt] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_Stocktake_Status", "[Status] IN (0,1,2,3)");
+                        });
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Inventory.StocktakeItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("CountedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CountedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("CountedQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("ExpectedQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("StockRowVersion")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("varbinary(8)");
+
+                    b.Property<Guid>("StocktakeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CountedByUserId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("StocktakeId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("StocktakeItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_StocktakeItem_Count", "[CountedQuantity] IS NULL OR ([CountedQuantity] >= 0 AND [CountedAt] IS NOT NULL AND [CountedByUserId] IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Inventory.StocktakeSequence", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<long>("LastValue")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("StocktakeSequences", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_StocktakeSequence", "[Id] = 1 AND [LastValue] >= 0");
+                        });
                 });
 
             modelBuilder.Entity("Forjix.Domain.Entities.Purchases.Purchase", b =>
@@ -774,6 +1151,175 @@ namespace Forjix.Infrastructure.Persistence.Tenant.Migrations
                     b.ToTable("Suppliers", (string)null);
                 });
 
+            modelBuilder.Entity("Forjix.Domain.Entities.Quotes.Quote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ConvertedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Discount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly>("IssueDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid?>("SaleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("ValidUntil")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("IssueDate");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("SaleId")
+                        .IsUnique()
+                        .HasFilter("[SaleId] IS NOT NULL");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("ValidUntil");
+
+                    b.HasIndex("Status", "ValidUntil");
+
+                    b.ToTable("Quotes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Quote_Amounts", "[Subtotal] >= 0 AND [Discount] >= 0 AND [Total] >= 0 AND [Total] <= [Subtotal]");
+
+                            t.HasCheckConstraint("CK_Quote_Conversion", "([Status] = 5 AND [SaleId] IS NOT NULL AND [ConvertedAt] IS NOT NULL) OR ([Status] <> 5 AND [SaleId] IS NULL AND [ConvertedAt] IS NULL)");
+
+                            t.HasCheckConstraint("CK_Quote_Dates", "[ValidUntil] >= [IssueDate]");
+
+                            t.HasCheckConstraint("CK_Quote_Status", "[Status] IN (0,1,2,3,5,6)");
+                        });
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Quotes.QuoteItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Discount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<Guid>("QuoteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("QuoteId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("QuoteItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_QuoteItem_Amounts", "[Quantity] > 0 AND [UnitPrice] >= 0 AND [Discount] >= 0 AND [Total] >= 0 AND [Total] = ROUND([Quantity] * [UnitPrice], 2) - [Discount]");
+                        });
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Quotes.QuoteSequence", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<long>("LastValue")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("QuoteSequences", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_QuoteSequence", "[Id] = 1 AND [LastValue] >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Forjix.Domain.Entities.Sales.Sale", b =>
                 {
                     b.Property<Guid>("Id")
@@ -914,6 +1460,62 @@ namespace Forjix.Infrastructure.Persistence.Tenant.Migrations
                     b.ToTable("SaleSequences", (string)null);
                 });
 
+            modelBuilder.Entity("Forjix.Domain.Entities.Financial.AccountPayable", b =>
+                {
+                    b.HasBaseType("Forjix.Domain.Entities.Financial.FinancialAccount");
+
+                    b.Property<Guid?>("PurchaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("PurchaseId", "InstallmentNumber")
+                        .IsUnique()
+                        .HasFilter("[PurchaseId] IS NOT NULL");
+
+                    b.ToTable("AccountsPayable", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Payable_Amounts", "[OriginalAmount] > 0 AND [OpenAmount] >= 0 AND [OpenAmount] <= [OriginalAmount]");
+
+                            t.HasCheckConstraint("CK_Payable_Dates", "[DueDate] >= [IssueDate]");
+
+                            t.HasCheckConstraint("CK_Payable_Installments", "[InstallmentNumber] >= 1 AND [InstallmentNumber] <= [TotalInstallments] AND [TotalInstallments] <= 120");
+
+                            t.HasCheckConstraint("CK_Payable_Status", "[Status] IN (0,1,2,4)");
+                        });
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Financial.AccountReceivable", b =>
+                {
+                    b.HasBaseType("Forjix.Domain.Entities.Financial.FinancialAccount");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("SaleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("SaleId", "InstallmentNumber")
+                        .IsUnique()
+                        .HasFilter("[SaleId] IS NOT NULL");
+
+                    b.ToTable("AccountsReceivable", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Receivable_Amounts", "[OriginalAmount] > 0 AND [OpenAmount] >= 0 AND [OpenAmount] <= [OriginalAmount]");
+
+                            t.HasCheckConstraint("CK_Receivable_Dates", "[DueDate] >= [IssueDate]");
+
+                            t.HasCheckConstraint("CK_Receivable_Installments", "[InstallmentNumber] >= 1 AND [InstallmentNumber] <= [TotalInstallments] AND [TotalInstallments] <= 120");
+
+                            t.HasCheckConstraint("CK_Receivable_Status", "[Status] IN (0,1,2,4)");
+                        });
+                });
+
             modelBuilder.Entity("Forjix.Domain.Entities.Cash.CashMovement", b =>
                 {
                     b.HasOne("Forjix.Domain.Entities.Cash.CashSession", "CashSession")
@@ -945,6 +1547,71 @@ namespace Forjix.Infrastructure.Persistence.Tenant.Migrations
                         .IsRequired();
 
                     b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Financial.FinancialAccount", b =>
+                {
+                    b.HasOne("Forjix.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Forjix.Domain.Entities.Financial.FinancialCategory", "FinancialCategory")
+                        .WithMany()
+                        .HasForeignKey("FinancialCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Forjix.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FinancialCategory");
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Financial.FinancialPayment", b =>
+                {
+                    b.HasOne("Forjix.Domain.Entities.Financial.AccountPayable", "AccountPayable")
+                        .WithMany()
+                        .HasForeignKey("AccountPayableId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Forjix.Domain.Entities.Financial.AccountReceivable", "AccountReceivable")
+                        .WithMany()
+                        .HasForeignKey("AccountReceivableId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Forjix.Domain.Entities.Cash.CashMovement", "CashMovement")
+                        .WithMany()
+                        .HasForeignKey("CashMovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Forjix.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Forjix.Domain.Entities.Cash.CashMovement", "ReversalCashMovement")
+                        .WithMany()
+                        .HasForeignKey("ReversalCashMovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Forjix.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("ReversedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("AccountPayable");
+
+                    b.Navigation("AccountReceivable");
+
+                    b.Navigation("CashMovement");
+
+                    b.Navigation("ReversalCashMovement");
                 });
 
             modelBuilder.Entity("Forjix.Domain.Entities.Identity.RefreshToken", b =>
@@ -1034,6 +1701,45 @@ namespace Forjix.Infrastructure.Persistence.Tenant.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Forjix.Domain.Entities.Inventory.Stocktake", b =>
+                {
+                    b.HasOne("Forjix.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Forjix.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Inventory.StocktakeItem", b =>
+                {
+                    b.HasOne("Forjix.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("CountedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Forjix.Domain.Entities.Catalog.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Forjix.Domain.Entities.Inventory.Stocktake", "Stocktake")
+                        .WithMany("Items")
+                        .HasForeignKey("StocktakeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Stocktake");
+                });
+
             modelBuilder.Entity("Forjix.Domain.Entities.Purchases.Purchase", b =>
                 {
                     b.HasOne("Forjix.Domain.Entities.Purchases.Supplier", "Supplier")
@@ -1072,6 +1778,57 @@ namespace Forjix.Infrastructure.Persistence.Tenant.Migrations
                     b.Navigation("Purchase");
                 });
 
+            modelBuilder.Entity("Forjix.Domain.Entities.Quotes.Quote", b =>
+                {
+                    b.HasOne("Forjix.Domain.Entities.Customers.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Forjix.Domain.Entities.Sales.Sale", "Sale")
+                        .WithMany()
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Forjix.Domain.Entities.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Forjix.Domain.Entities.Identity.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("Sale");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Quotes.QuoteItem", b =>
+                {
+                    b.HasOne("Forjix.Domain.Entities.Catalog.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Forjix.Domain.Entities.Quotes.Quote", "Quote")
+                        .WithMany("Items")
+                        .HasForeignKey("QuoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Quote");
+                });
+
             modelBuilder.Entity("Forjix.Domain.Entities.Sales.Sale", b =>
                 {
                     b.HasOne("Forjix.Domain.Entities.Customers.Customer", "Customer")
@@ -1105,6 +1862,40 @@ namespace Forjix.Infrastructure.Persistence.Tenant.Migrations
                         .IsRequired();
 
                     b.Navigation("Product");
+
+                    b.Navigation("Sale");
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Financial.AccountPayable", b =>
+                {
+                    b.HasOne("Forjix.Domain.Entities.Purchases.Purchase", "Purchase")
+                        .WithMany()
+                        .HasForeignKey("PurchaseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Forjix.Domain.Entities.Purchases.Supplier", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Purchase");
+
+                    b.Navigation("Supplier");
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Financial.AccountReceivable", b =>
+                {
+                    b.HasOne("Forjix.Domain.Entities.Customers.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Forjix.Domain.Entities.Sales.Sale", "Sale")
+                        .WithMany()
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Customer");
 
                     b.Navigation("Sale");
                 });
@@ -1165,6 +1956,11 @@ namespace Forjix.Infrastructure.Persistence.Tenant.Migrations
                     b.Navigation("Movements");
                 });
 
+            modelBuilder.Entity("Forjix.Domain.Entities.Inventory.Stocktake", b =>
+                {
+                    b.Navigation("Items");
+                });
+
             modelBuilder.Entity("Forjix.Domain.Entities.Purchases.Purchase", b =>
                 {
                     b.Navigation("Items");
@@ -1173,6 +1969,11 @@ namespace Forjix.Infrastructure.Persistence.Tenant.Migrations
             modelBuilder.Entity("Forjix.Domain.Entities.Purchases.Supplier", b =>
                 {
                     b.Navigation("Purchases");
+                });
+
+            modelBuilder.Entity("Forjix.Domain.Entities.Quotes.Quote", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("Forjix.Domain.Entities.Sales.Sale", b =>

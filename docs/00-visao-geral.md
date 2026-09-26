@@ -1,5 +1,9 @@
 # Visão geral
 
+## Entrega Financeiro V1
+
+Categorias financeiras, títulos pagar/receber, parcelamento, pagamentos/estornos, integrações venda/compra/caixa e dashboard estão implementados; veja [Financeiro](12-financeiro.md). A validação atual passou 76 testes .NET (20 Domain, 21 Application, 35 Integration), incluindo SQL Server real com 29 casos condicionais habilitados, e 18 testes Angular. As contagens na seção original abaixo registram a análise anterior à entrega financeira.
+
 ## Produto observado no código
 
 Forjix é uma aplicação web de gestão comercial multiempresa. A V1 contém administração de usuários e grupos, catálogo, estoque, clientes, fornecedores, compras, vendas/PDV, caixa, dashboard, relatórios, configurações do tenant e auditoria. O backend mantém um catálogo central (`ForjixMaster`) e abre um banco SQL Server separado para cada tenant. O frontend Angular consome a API por URLs relativas `/api`.

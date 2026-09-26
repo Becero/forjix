@@ -1,5 +1,9 @@
 # Backend
 
+## Atualização Financeiro V1
+
+As entidades FinancialCategory, FinancialAccount (base abstrata), AccountReceivable, AccountPayable e FinancialPayment foram acrescentadas. Serviço, store, contratos, controladores e regras estão em [Financeiro](12-financeiro.md). O catálogo agora tem 38 permissões. Na validação da entrega passaram 20 testes Domain, 21 Application e 35 Integration (incluindo 29 SQL condicionais habilitados).
+
 ## Entidades de domínio
 
 As propriedades abaixo são as propriedades persistentes declaradas nas classes; navegações são descritas separadamente. Tipos anuláveis estão marcados com `?`.
@@ -22,7 +26,7 @@ As propriedades abaixo são as propriedades persistentes declaradas nas classes;
 | --- | --- | --- | --- |
 | `User` | Identidade local ao banco tenant. | `Id`, `Name`, `Email`, `NormalizedEmail`, `PasswordHash:string`, `IsActive`, `LockedUntil?`, `FailedAccessAttempts:int`, `SecurityStamp:Guid`, timestamps | N:N roles; 1:N refresh tokens. Login rejeita inativo/bloqueado. |
 | `Role` | Grupo de acesso. | `Id`, `Name`, `NormalizedName`, `Description?`, `IsSystem`, timestamps | N:N users e permissions. Grupo de sistema pode ser atualizado no serviço, mas seu nome não pode ser alterado. |
-| `Permission` | Ação autorizável. | `Id`, `Code`, `Name`, `Description?`, `Module:string` | Catálogo de 29 códigos em `Permissions.Catalog`. |
+| `Permission` | Ação autorizável. | `Id`, `Code`, `Name`, `Description?`, `Module:string` | Catálogo de 38 códigos em `Permissions.Catalog`. |
 | `UserRole` | Associação usuário–grupo. | `UserId`, `RoleId:Guid`, `AssignedAt` | PK composta; cascata nas duas FKs. |
 | `RolePermission` | Associação grupo–permissão. | `RoleId`, `PermissionId:Guid`, `GrantedAt` | PK composta; cascata nas duas FKs. |
 | `RefreshToken` | Sessão renovável persistida por hash. | `Id`, `UserId`, `FamilyId:Guid`, `TokenHash:string`, `ExpiresAt`, `CreatedAt`, `RevokedAt?`, `ReplacedByTokenId:Guid?`, `RowVersion:byte[]` | Pertence a user; hash único; rotação/replay opera por família. |
@@ -92,5 +96,5 @@ Todos esses contratos são records; controllers recebem requests e retornam os v
 
 - `Forjix.Domain.Tests`: 11 casos expandidos (theories incluídas).
 - `Forjix.Application.Tests`: 12 casos.
-- `Forjix.IntegrationTests`: 29 casos; 6 independem do SQL real e 23 requerem bancos CI SQL Server, connection strings externas, seed e `FORJIX_RUN_SQL_TESTS=true`.
+- `Forjix.IntegrationTests`: 35 casos; 6 independem do SQL real e 29 requerem bancos CI SQL Server, connection strings externas, seed e `FORJIX_RUN_SQL_TESTS=true`.
 - A suíte real cobre migrations, idempotência do seed, login/refresh/logout, autorização, isolamento entre bancos, concorrência de estoque, CRUDs, vendas, caixa, relatórios/exportações e settings.

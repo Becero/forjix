@@ -228,7 +228,7 @@ internal sealed class ManagementService(
         var sku = Required(request.Sku, "O SKU é obrigatório.", 80).ToUpperInvariant();
         if (request.SalePrice <= 0) throw new RequestValidationException("O preço de venda deve ser maior que zero.");
         if (request.CostPrice < 0) throw new RequestValidationException("O custo não pode ser negativo.");
-        if (request.MinimumStock < 0) throw new RequestValidationException("O estoque mínimo não pode ser negativo.");
+        if (request.MinimumStock < 0 || request.MinimumStock > 999999999999999.999m || decimal.Round(request.MinimumStock, 3) != request.MinimumStock) throw new RequestValidationException("O estoque mínimo deve ser não negativo e possuir até três casas decimais.");
         await using var store = await StoreAsync(cancellationToken);
         if (!await store.CategoryIsActiveAsync(request.CategoryId, cancellationToken)) throw new RequestValidationException("Selecione uma categoria ativa.");
         if (await store.ProductSkuExistsAsync(sku, id, cancellationToken)) throw new ResourceConflictException("Já existe um produto com este SKU.");

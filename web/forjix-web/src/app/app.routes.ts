@@ -12,6 +12,15 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./layouts/authenticated-layout/authenticated-layout').then((module) => module.AuthenticatedLayout),
     children: [
+      { path: 'stocktakes', canActivate: [permissionGuard], data: { permission: 'stock.inventory.view' }, loadComponent: () => import('./features/inventory/stocktakes/stocktakes').then(m => m.Stocktakes) },
+      { path: 'stock/movements', canActivate: [permissionGuard], data: { permission: 'stock.view', mode: 'movements' }, loadComponent: () => import('./features/inventory/stock-operations/stock-operations').then(m => m.StockOperations) },
+      { path: 'stock/adjust', canActivate: [permissionGuard], data: { permission: 'stock.adjust', mode: 'adjust' }, loadComponent: () => import('./features/inventory/stock-operations/stock-operations').then(m => m.StockOperations) },
+      { path: 'stock/reports', canActivate: [permissionGuard], data: { permission: 'stock.reports', mode: 'reports' }, loadComponent: () => import('./features/inventory/stock-operations/stock-operations').then(m => m.StockOperations) },
+      { path: 'quotes', canActivate: [permissionGuard], data: { permission: 'quotes.view' }, loadComponent: () => import('./features/quotes/quotes').then(m => m.Quotes) },
+      { path: 'financial/receivable', canActivate: [permissionGuard], data: { permission: 'financial.receivable.view', kind: 'accounts-receivable' }, loadComponent: () => import('./features/financial/financial-accounts').then(m => m.FinancialAccounts) },
+      { path: 'financial/payable', canActivate: [permissionGuard], data: { permission: 'financial.payable.view', kind: 'accounts-payable' }, loadComponent: () => import('./features/financial/financial-accounts').then(m => m.FinancialAccounts) },
+      { path: 'financial/categories', canActivate: [permissionGuard], data: { permission: 'financial.categories.view' }, loadComponent: () => import('./features/financial/financial-categories').then(m => m.FinancialCategories) },
+      { path: 'financial/dashboard', canActivate: [permissionGuard], data: { permission: 'financial.dashboard.view' }, loadComponent: () => import('./features/financial/financial-dashboard').then(m => m.FinancialDashboardPage) },
       {
         path: '', canActivate: [permissionGuard], data: { permission: 'dashboard.view' },
         loadComponent: () => import('./features/dashboard/dashboard').then(module => module.Dashboard)

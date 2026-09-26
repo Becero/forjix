@@ -1,3 +1,4 @@
+import { FinancialApiService, FinancialCategory } from '../../core/api/financial-api.service';
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
@@ -20,6 +21,9 @@ export class Pos {
   private readonly customersApi = inject(CustomersApiService);
   private readonly cashApi = inject(CashApiService);
   private readonly context = inject(AuthSessionStore).context;
+  readonly financialCategories = signal<FinancialCategory[]>([]);
+  readonly canDefer = this.context()?.permissions.includes('financial.receivable.manage') === true && this.context()?.permissions.includes('financial.categories.view') === true;
+  private readonly financial = inject(FinancialApiService);
   readonly products = signal<InventoryItem[]>([]);
   readonly customers = signal<Customer[]>([]);
   readonly cart = signal<CartLine[]>([]);
@@ -31,12 +35,13 @@ export class Pos {
   readonly canViewCustomers = this.context()?.permissions.includes('customers.view') ?? false;
   readonly canViewCash = this.context()?.permissions.includes('cash.view') ?? false;
   readonly allowNegative = this.context()?.settings?.['AllowNegativeStock'] === true;
-  readonly form = new FormGroup({ search: new FormControl('', { nonNullable: true }), customerId: new FormControl('', { nonNullable: true }), discount: new FormControl(0, { nonNullable: true }), paymentMethod: new FormControl<PaymentMethod>('Cash', { nonNullable: true }) });
+  readonly form = new FormGroup({ financialCategoryId: new FormControl('', { nonNullable: true }), firstDueDate: new FormControl(new Date().toISOString().slice(0,10), { nonNullable: true }), installments: new FormControl(1, { nonNullable: true }), search: new FormControl('', { nonNullable: true }), customerId: new FormControl('', { nonNullable: true }), discount: new FormControl(0, { nonNullable: true }), paymentMethod: new FormControl<PaymentMethod>('Cash', { nonNullable: true }) });
   readonly subtotal = computed(() => this.cart().reduce((sum, line) => sum + line.product.salePrice * line.quantity, 0));
   readonly total = computed(() => Math.max(0, this.subtotal() - Number(this.form.controls.discount.value || 0)));
 
   constructor() {
     this.load();
+    if (this.canDefer) this.financial.categories('Income').subscribe({ next: x => this.financialCategories.set(x.filter(c => c.isActive)), error: e => this.error.set(apiError(e)) });
     if (this.canViewCustomers) this.customersApi.list({ isActive: 'true', page: 1, pageSize: 100 }).subscribe(result => this.customers.set(result.items));
     if (this.canViewCash) this.refreshCash();
     this.form.controls.discount.valueChanges.subscribe(() => this.cart.update(lines => [...lines]));
@@ -54,7 +59,9 @@ export class Pos {
     if (this.cashOpen() === false) { this.error.set('Abra o caixa antes de finalizar uma venda.'); return; }
     this.saving.set(true); this.error.set('');
     const customerId = this.form.controls.customerId.value || null;
-    const request = { paymentMethod: this.form.controls.paymentMethod.value, discount, customerId, items: this.cart().map(x => ({ productId: x.product.productId, quantity: x.quantity })) };
+    const terms = this.form.getRawValue();
+    if (terms.paymentMethod === 'Deferred' && (!customerId || !terms.financialCategoryId || !terms.firstDueDate || terms.installments < 1)) { this.error.set('Selecione cliente, categoria, vencimento e parcelas para venda a prazo.'); this.saving.set(false); return; }
+    const request = { financialTerms: terms.paymentMethod === 'Deferred' ? { financialCategoryId: terms.financialCategoryId, firstDueDate: terms.firstDueDate, installments: terms.installments } : undefined, paymentMethod: this.form.controls.paymentMethod.value, discount, customerId, items: this.cart().map(x => ({ productId: x.product.productId, quantity: x.quantity })) };
     this.sales.create(request, crypto.randomUUID()).subscribe({ next: sale => { this.success.set(sale); this.cart.set([]); this.form.controls.discount.setValue(0); this.saving.set(false); this.load(); if (this.canViewCash) this.refreshCash(); }, error: error => { this.error.set(apiError(error)); this.saving.set(false); } });
   }
 }

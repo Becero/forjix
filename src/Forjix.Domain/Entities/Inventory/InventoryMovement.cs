@@ -13,6 +13,8 @@ public sealed class InventoryMovement
     public decimal Quantity { get; set; }
     public decimal PreviousQuantity { get; set; }
     public decimal NewQuantity { get; set; }
+    public string? ReasonCode { get; set; }
+    public string? Observation { get; set; }
     public string? Reason { get; set; }
     public string? ReferenceType { get; set; }
     public string? ReferenceId { get; set; }

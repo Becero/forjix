@@ -258,6 +258,8 @@ static async Task ProvisionTenantAsync(
     if (definition.SeedCommercialDemo)
     {
         await SeedCommercialDemoAsync(tenantDb, definition.AdminEmail, now);
+        await SeedQuotesDemoAsync(tenantDb, definition.AdminEmail, now);
+        await SeedStocktakesDemoAsync(tenantDb, definition.AdminEmail, now);
     }
 }
 
@@ -456,6 +458,63 @@ static async Task SeedCommercialDemoAsync(TenantDbContext db, string adminEmail,
         db.Sales.Add(sale);
     }
     db.SaleSequences.Add(new SaleSequence { Date = DateOnly.FromDateTime(now.UtcDateTime), LastValue = sequence });
+    await db.SaveChangesAsync();
+}
+
+static async Task SeedQuotesDemoAsync(TenantDbContext db, string email, DateTimeOffset now)
+{
+    var normalizedQuoteEmail = email.ToUpperInvariant();
+    var user = await db.Users.SingleAsync(x => x.NormalizedEmail == normalizedQuoteEmail);
+    var customerId = Guid.Parse("a7000000-0000-0000-0000-000000000001");
+    var customer = await db.Customers.SingleOrDefaultAsync(x => x.Id == customerId);
+    if (customer is null)
+    {
+        customer = new Forjix.Domain.Entities.Customers.Customer { Id = customerId, Name = "Cliente demonstrativo", IsActive = true, CreatedAt = now, UpdatedAt = now };
+        db.Customers.Add(customer);
+    }
+    var product = await db.Products.FirstAsync(x => x.Sku == "ALI-001");
+    var sequence = await db.QuoteSequences.SingleOrDefaultAsync(x => x.Id == 1);
+    if (sequence is null) { sequence = new Forjix.Domain.Entities.Quotes.QuoteSequence(); db.QuoteSequences.Add(sequence); }
+    for (var i = 1; i <= 2; i++)
+    {
+        var id = Guid.Parse($"a7100000-0000-0000-0000-{i:000000000000}");
+        if (await db.Quotes.AnyAsync(x => x.Id == id)) continue;
+        sequence.LastValue++;
+        var quote = new Forjix.Domain.Entities.Quotes.Quote { Id = id, Number = $"ORC-{sequence.LastValue:000000}", CustomerId = customerId, UserId = user.Id, UpdatedByUserId = user.Id, IssueDate = DateOnly.FromDateTime(now.UtcDateTime), ValidUntil = DateOnly.FromDateTime(now.UtcDateTime).AddDays(15), Notes = "Orçamento demonstrativo", CreatedAt = now, UpdatedAt = now };
+        quote.Items.Add(new Forjix.Domain.Entities.Quotes.QuoteItem { Id = Guid.NewGuid(), ProductId = product.Id, ProductName = product.Name, Sku = product.Sku, Quantity = i, UnitPrice = product.SalePrice });
+        quote.Calculate();
+        if (i == 2) { quote.Transition(QuoteStatus.Sent, quote.IssueDate); quote.Transition(QuoteStatus.Approved, quote.IssueDate); }
+        db.Quotes.Add(quote);
+        db.AuditLogs.Add(new Forjix.Domain.Entities.Audit.AuditLog { UserId = user.Id, Action = AuditAction.QuoteCreated, EntityName = "Quote", EntityId = id.ToString(), AfterData = "{\"source\":\"CommercialSeed\"}", CorrelationId = "seed", OccurredAt = now });
+    }
+    await db.SaveChangesAsync();
+}
+
+static async Task SeedStocktakesDemoAsync(TenantDbContext db,string email,DateTimeOffset now)
+{
+    var normalizedInventoryEmail=email.ToUpperInvariant();
+    var user=await db.Users.SingleAsync(x=>x.NormalizedEmail==normalizedInventoryEmail);
+    var product=await db.Products.Include(x=>x.Inventory).FirstAsync(x=>x.Sku=="ALI-001");
+    var zeroId=Guid.Parse("a7200000-0000-0000-0000-000000000001");
+    if(!await db.Products.AnyAsync(x=>x.Id==zeroId))
+    {
+        var zero=new Product{Id=zeroId,CategoryId=product.CategoryId,Name="Produto demonstrativo sem estoque",Sku="INV-DEMO-ZERO",SalePrice=10,CostPrice=4,MinimumStock=2,CreatedAt=now,UpdatedAt=now};
+        zero.Inventory=Forjix.Domain.Entities.Inventory.Inventory.Create(zeroId,now);db.Products.Add(zero);
+    }
+    var sequence=await db.StocktakeSequences.SingleOrDefaultAsync(x=>x.Id==1);
+    if(sequence is null){sequence=new();db.StocktakeSequences.Add(sequence);}
+    for(var i=1;i<=2;i++)
+    {
+        var id=Guid.Parse($"a7300000-0000-0000-0000-{i:000000000000}");
+        if(await db.Stocktakes.AnyAsync(x=>x.Id==id))continue;
+        sequence.LastValue++;
+        var item=new Forjix.Domain.Entities.Inventory.Stocktake{Id=id,Number=$"INV-{sequence.LastValue:000000}",UserId=user.Id,UpdatedByUserId=user.Id,OpenedAt=now,UpdatedAt=now,Notes="Inventário demonstrativo sem diferença de saldo"};
+        var detail=new Forjix.Domain.Entities.Inventory.StocktakeItem{Id=Guid.NewGuid(),ProductId=product.Id,ExpectedQuantity=product.Inventory.Quantity,StockRowVersion=product.Inventory.RowVersion};
+        item.Items.Add(detail);item.Start(now);
+        if(i==2){detail.Count(product.Inventory.Quantity,"Sem divergência",user.Id,now);item.Complete(now);}
+        db.Stocktakes.Add(item);
+        db.AuditLogs.Add(new Forjix.Domain.Entities.Audit.AuditLog{UserId=user.Id,Action=AuditAction.StocktakeCreated,EntityName="Stocktake",EntityId=id.ToString(),AfterData="{\"source\":\"CommercialSeed\"}",CorrelationId="seed",OccurredAt=now});
+    }
     await db.SaveChangesAsync();
 }
 

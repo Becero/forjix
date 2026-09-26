@@ -9,4 +9,4 @@ public sealed record PurchaseItemView(Guid Id, Guid ProductId, string ProductNam
 public sealed record PurchaseView(Guid Id, string Number, Guid SupplierId, string SupplierName, string Status, decimal Total, string? Notes, Guid UserId, string UserName, DateTimeOffset CreatedAt, DateTimeOffset? ReceivedAt, DateTimeOffset? CancelledAt, string RowVersion, IReadOnlyList<PurchaseItemView> Items);
 public sealed record PurchaseListItem(Guid Id, string Number, string SupplierName, string Status, decimal Total, int ItemCount, DateTimeOffset CreatedAt, string RowVersion);
 public sealed record PagedPurchases(IReadOnlyList<PurchaseListItem> Items, int Page, int PageSize, int Total);
-public sealed record PurchaseActionRequest(string RowVersion);
+public sealed record PurchaseActionRequest(string RowVersion, Financial.FinancialTerms? FinancialTerms = null);

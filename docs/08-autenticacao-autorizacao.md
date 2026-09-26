@@ -41,7 +41,7 @@ O padrão de expiração é 15 minutos. Permissões não entram no JWT; são con
 
 ## Roles, permissions e policies
 
-Usuários e roles são N:N; roles e permissions são N:N. `Permissions.Catalog` contém 29 códigos. `RequirePermissionAttribute` cria policy `Permission:<code>`. `PermissionPolicyProvider` gera a policy dinamicamente e exige usuário autenticado. `PermissionAuthorizationHandler` extrai tenant/user das claims e chama `PermissionChecker`, que consulta o banco correto.
+Usuários e roles são N:N; roles e permissions são N:N. `Permissions.Catalog` contém 38 códigos. `RequirePermissionAttribute` cria policy `Permission:<code>`. `PermissionPolicyProvider` gera a policy dinamicamente e exige usuário autenticado. `PermissionAuthorizationHandler` extrai tenant/user das claims e chama `PermissionChecker`, que consulta o banco correto.
 
 Permissões atuais:
 

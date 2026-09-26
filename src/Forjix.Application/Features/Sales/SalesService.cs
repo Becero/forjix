@@ -14,13 +14,19 @@ internal sealed class SalesService(ITenantDatabaseResolver tenantResolver, ISale
         if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Trim().Length > 100) throw new RequestValidationException("Informe um Idempotency-Key válido.");
         if (!Enum.TryParse<PaymentMethod>(request.PaymentMethod, true, out var paymentMethod) || !Enum.IsDefined(paymentMethod)) throw new RequestValidationException("Forma de pagamento inválida.");
         if (request.Discount < 0) throw new RequestValidationException("O desconto não pode ser negativo.");
+        if (paymentMethod == PaymentMethod.Deferred && (!request.CustomerId.HasValue || request.FinancialTerms is null))
+            throw new RequestValidationException("Venda a prazo exige cliente e condições financeiras.");
+        if (paymentMethod != PaymentMethod.Deferred && request.FinancialTerms is not null)
+            throw new RequestValidationException("Condições financeiras são exclusivas de vendas a prazo.");
         if (request.Items.Count == 0) throw new RequestValidationException("Adicione ao menos um produto à venda.");
         if (request.Items.Any(x => x.ProductId == Guid.Empty || x.Quantity <= 0)) throw new RequestValidationException("Todos os itens devem possuir produto e quantidade maior que zero.");
         var (tenant, userId, store) = await StoreAsync(cancellationToken);
         await using (store)
         {
             if (request.Discount > 0 && !await permissions.HasPermissionAsync(tenant.TenantId, userId, Permissions.SalesDiscount, cancellationToken)) throw new PermissionDeniedException("Seu grupo não permite conceder descontos.");
-            return await store.CreateAsync(idempotencyKey.Trim(), userId, paymentMethod, request.Discount, request.CustomerId, request.Items, AllowNegative(tenant), Audit(), timeProvider.GetUtcNow(), cancellationToken);
+            if (paymentMethod == PaymentMethod.Deferred && !await permissions.HasPermissionAsync(tenant.TenantId, userId, Permissions.FinancialReceivableManage, cancellationToken))
+                throw new PermissionDeniedException("Seu grupo não permite criar contas a receber.");
+            return await store.CreateAsync(idempotencyKey.Trim(), userId, paymentMethod, request.Discount, request.CustomerId, request.Items, AllowNegative(tenant), Audit(), timeProvider.GetUtcNow(), request.FinancialTerms, cancellationToken);
         }
     }
 

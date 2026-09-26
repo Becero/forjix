@@ -15,6 +15,13 @@ public static class Permissions
     public const string CategoriesView = "categories.view";
     public const string CategoriesManage = "categories.manage";
     public const string StockView = "stock.view";
+    public const string StockAdjust = "stock.adjust";
+    public const string StockInventoryView = "stock.inventory.view";
+    public const string StockInventoryCreate = "stock.inventory.create";
+    public const string StockInventoryCount = "stock.inventory.count";
+    public const string StockInventoryComplete = "stock.inventory.complete";
+    public const string StockInventoryCancel = "stock.inventory.cancel";
+    public const string StockReports = "stock.reports";
     public const string StockManage = "stock.manage";
     public const string SalesView = "sales.view";
     public const string SalesCreate = "sales.create";
@@ -33,10 +40,50 @@ public static class Permissions
     public const string CashManage = "cash.manage";
     public const string SettingsView = "settings.view";
     public const string SettingsManage = "settings.manage";
+    public const string FinancialCategoriesView = "financial.categories.view";
+    public const string FinancialCategoriesManage = "financial.categories.manage";
+    public const string FinancialReceivableView = "financial.receivable.view";
+    public const string FinancialReceivableManage = "financial.receivable.manage";
+    public const string FinancialReceivablePay = "financial.receivable.pay";
+    public const string FinancialPayableView = "financial.payable.view";
+    public const string FinancialPayableManage = "financial.payable.manage";
+    public const string FinancialPayablePay = "financial.payable.pay";
+    public const string FinancialDashboardView = "financial.dashboard.view";
+
+    public const string QuotesView = "quotes.view";
+    public const string QuotesCreate = "quotes.create";
+    public const string QuotesEdit = "quotes.edit";
+    public const string QuotesStatus = "quotes.status";
+    public const string QuotesCancel = "quotes.cancel";
+    public const string QuotesConvert = "quotes.convert";
+    public const string QuotesPrint = "quotes.print";
 
     public static readonly IReadOnlyList<string> All =
     [
+        StockAdjust,
+        StockInventoryView,
+        StockInventoryCreate,
+        StockInventoryCount,
+        StockInventoryComplete,
+        StockInventoryCancel,
+        StockReports,
+        QuotesView,
+        QuotesCreate,
+        QuotesEdit,
+        QuotesStatus,
+        QuotesCancel,
+        QuotesConvert,
+        QuotesPrint,
         DashboardView,
+        FinancialCategoriesView,
+        FinancialCategoriesManage,
+        FinancialReceivableView,
+        FinancialReceivableManage,
+        FinancialReceivablePay,
+        FinancialPayableView,
+        FinancialPayableManage,
+        FinancialPayablePay,
+        FinancialDashboardView,
         AdministrationUsersView,
         AdministrationUsersManage,
         AdministrationRolesView,
@@ -61,7 +108,30 @@ public static class Permissions
 
     public static readonly IReadOnlyList<Definition> Catalog =
     [
+        new(StockAdjust, "Ajustar estoque", "Estoque"),
+        new(StockInventoryView, "Visualizar inventários", "Estoque"),
+        new(StockInventoryCreate, "Criar e editar inventários", "Estoque"),
+        new(StockInventoryCount, "Iniciar e contar inventários", "Estoque"),
+        new(StockInventoryComplete, "Finalizar inventários", "Estoque"),
+        new(StockInventoryCancel, "Cancelar inventários", "Estoque"),
+        new(StockReports, "Consultar relatórios de estoque", "Estoque"),
+        new(QuotesView, "Visualizar orçamentos", "Comercial"),
+        new(QuotesCreate, "Criar orçamentos", "Comercial"),
+        new(QuotesEdit, "Editar orçamentos", "Comercial"),
+        new(QuotesStatus, "Enviar, aprovar e rejeitar orçamentos", "Comercial"),
+        new(QuotesCancel, "Cancelar orçamentos", "Comercial"),
+        new(QuotesConvert, "Converter orçamentos em vendas", "Comercial"),
+        new(QuotesPrint, "Imprimir orçamentos", "Comercial"),
         new(DashboardView, "Visualizar painel", "Painel"),
+        new(FinancialCategoriesView, "Visualizar categorias financeiras", "Financeiro"),
+        new(FinancialCategoriesManage, "Gerenciar categorias financeiras", "Financeiro"),
+        new(FinancialReceivableView, "Visualizar contas a receber", "Financeiro"),
+        new(FinancialReceivableManage, "Gerenciar contas a receber", "Financeiro"),
+        new(FinancialReceivablePay, "Baixar e estornar contas a receber", "Financeiro"),
+        new(FinancialPayableView, "Visualizar contas a pagar", "Financeiro"),
+        new(FinancialPayableManage, "Gerenciar contas a pagar", "Financeiro"),
+        new(FinancialPayablePay, "Baixar e estornar contas a pagar", "Financeiro"),
+        new(FinancialDashboardView, "Visualizar dashboard financeiro", "Financeiro"),
         new(AdministrationUsersView, "Visualizar usuários", "Administração"),
         new(AdministrationUsersManage, "Gerenciar usuários", "Administração"),
         new(AdministrationRolesView, "Visualizar grupos de acesso", "Administração"),

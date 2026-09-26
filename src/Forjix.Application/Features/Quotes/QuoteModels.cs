@@ -1,0 +1,10 @@
+namespace Forjix.Application.Features.Quotes;
+public sealed record SaveQuoteItemRequest(Guid ProductId, decimal Quantity, decimal Discount = 0);
+public sealed record SaveQuoteRequest(Guid CustomerId, DateOnly ValidUntil, decimal Discount, string? Notes, IReadOnlyList<SaveQuoteItemRequest> Items, string? RowVersion = null);
+public sealed record QuoteActionRequest(string RowVersion, string? Reason = null);
+public sealed record ConvertQuoteRequest(string RowVersion, string PaymentMethod, Financial.FinancialTerms? FinancialTerms = null);
+public sealed record QuoteFilter(string? Search, Guid? CustomerId, string? Status, DateOnly? From, DateOnly? Through, bool ExpiredOnly = false, bool ConvertedOnly = false, int Page = 1, int PageSize = 20);
+public sealed record QuoteItemView(Guid Id, Guid ProductId, string ProductName, string Sku, decimal Quantity, decimal UnitPrice, decimal Discount, decimal Total);
+public sealed record QuoteView(Guid Id, string Number, Guid CustomerId, string CustomerName, DateOnly IssueDate, DateOnly ValidUntil, string Status, string? Notes, decimal Subtotal, decimal Discount, decimal Total, Guid UserId, string UserName, Guid? SaleId, DateTimeOffset? ConvertedAt, string RowVersion, IReadOnlyList<QuoteItemView> Items, bool IsEditable = false);
+public sealed record PagedQuotes(IReadOnlyList<QuoteView> Items, int Page, int PageSize, int Total);
+public sealed record QuoteSummary(int Count, decimal Value, int Approved, int Pending, int Converted, int Expired, decimal ConversionRate);

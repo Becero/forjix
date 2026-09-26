@@ -1,6 +1,6 @@
 # Dicionário de dados
 
-Fonte: snapshots EF Core 10.0.4 e configurações atuais. Convenções: **NN** = `NOT NULL`; **NULL** = anulável; **PK** = primary key; **UQ** = índice único. Enums são persistidos como `int`. Não há schemas SQL customizados nem check constraints declarados.
+Fonte: snapshots EF Core 10.0.4 e configurações atuais. Convenções: **NN** = `NOT NULL`; **NULL** = anulável; **PK** = primary key; **UQ** = índice único. Enums são persistidos como `int`. Não há schemas SQL customizados. Financeiro V1 possui check constraints declarados; o esquema completo das quatro tabelas novas está em [Financeiro: modelo físico](12-financeiro.md#modelo-físico). As tabelas anteriores estão descritas abaixo.
 
 ## ForjixMaster
 

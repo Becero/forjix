@@ -1,0 +1,20 @@
+import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { of,throwError } from 'rxjs';
+import { StockOperations } from './stock-operations';
+import { StockApiService } from '../../../core/api/stock-api.service';
+import { InventoryApiService } from '../../../core/api/inventory-api.service';
+import { InventoryItem } from '../../../core/api/inventory.models';
+import { AuthSessionStore } from '../../../core/auth/auth-session.store';
+describe('StockOperations',()=>{
+ let api:jasmine.SpyObj<StockApiService>;let route:{snapshot:{data:{mode:string}}};
+ const product={productId:'p',quantity:10,rowVersion:'v'} as InventoryItem;
+ beforeEach(()=>{route={snapshot:{data:{mode:'adjust'}}};api=jasmine.createSpyObj('stock',['report','movements','adjust']);api.report.and.returnValue(of([]));api.movements.and.returnValue(of({items:[],total:0}));api.adjust.and.returnValue(of({inventory:{...product,quantity:8,rowVersion:'new'},movement:{} as never}));TestBed.configureTestingModule({providers:[{provide:StockApiService,useValue:api},{provide:InventoryApiService,useValue:{list:()=>of([product])}},{provide:AuthSessionStore,useValue:{context:signal({permissions:['stock.view','stock.adjust','stock.reports']})}},{provide:ActivatedRoute,useValue:route}]});});
+ const create=()=>TestBed.runInInjectionContext(()=>new StockOperations());
+ it('requires product before manual adjustment',()=>{const p=create();p.adjust();expect(api.adjust).not.toHaveBeenCalled();expect(p.error()).toBeTruthy();});
+ it('sends adjustment with current stock version and updates balance',()=>{const p=create();p.form.patchValue({productId:'p',type:'NegativeAdjustment',quantity:2,reason:'Damage'});expect(p.projected()).toBe(8);p.adjust();expect(api.adjust.calls.mostRecent().args[0].rowVersion).toBe('v');expect(p.products()[0].quantity).toBe(8);expect(p.products()[0].rowVersion).toBe('new');});
+ it('shows concurrency errors without pretending an adjustment succeeded',()=>{api.adjust.and.returnValue(throwError(()=>({error:{detail:'Saldo alterado.'}})));const p=create();p.form.patchValue({productId:'p'});p.adjust();expect(p.products()[0].quantity).toBe(10);expect(p.error()).toBe('Saldo alterado.');expect(p.saving()).toBeFalse();});
+ it('loads low stock report and accepts inactivity windows',()=>{route.snapshot.data.mode='reports';const p=create();expect(api.report).toHaveBeenCalledWith('low-stock',{days:30,from:'',to:''});p.filters.patchValue({kind:'no-movement',days:90});p.load();expect(api.report).toHaveBeenCalledWith('no-movement',{days:90,from:'',to:''});});
+ it('filters movement origins and paginates',()=>{route.snapshot.data.mode='movements';const p=create();p.filters.patchValue({origin:'Stocktake'});p.load(2);expect(api.movements.calls.mostRecent().args[0]['origin']).toBe('Stocktake');expect(api.movements.calls.mostRecent().args[0]['page']).toBe(2);expect(p.loading()).toBeFalse();});
+});

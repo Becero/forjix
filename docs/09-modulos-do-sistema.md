@@ -19,6 +19,7 @@ Esta classificação reflete somente funcionalidades presentes no código atual.
 | Dashboard | Implementado | indicadores, últimos sete dias, estoque baixo, vendas recentes e produtos mais vendidos |
 | Relatórios | Implementado | período, vendas, pagamentos, produtos, estoque, compras e movimentos; exportação PDF ou Excel XML |
 | Configurações | Implementado | dados do estabelecimento, estoque negativo, moeda, fuso e logotipo |
+| Financeiro V1 | Implementado | categorias, pagar/receber, parcelas, baixas, estornos, caixa, origens e dashboard; [detalhes](12-financeiro.md) |
 
 ## Administração
 
@@ -67,4 +68,12 @@ O modelo contém `CashRegister`, `CashSession` e `CashMovement`. O serviço trab
 
 ## Funcionalidades não encontradas
 
-Não há módulos de emissão fiscal, TEF/adquirência, aplicativo móvel, multi-loja, pedidos de venda independentes, contas a pagar/receber ou e-commerce. Eles também não devem ser inferidos a partir das telas atuais.
+Não há módulos de emissão fiscal, TEF/adquirência, aplicativo móvel, multi-loja, pedidos de venda independentes ou e-commerce. Eles também não devem ser inferidos a partir das telas atuais. Contas a pagar/receber estão implementadas no Financeiro V1.
+
+## Orçamentos V1 — atualização de 26/09/2026
+
+O módulo comercial de orçamentos está implementado. A migration tenant `20260926144839_AddQuotesV1` acrescenta `Quotes`, `QuoteItems` e `QuoteSequences`, sete permissões `quotes.*` e os endpoints `/api/quotes`. Criação não movimenta estoque nem financeiro; conversão aprovada reutiliza a venda em transação única. Consulte [Orçamentos V1](13-orcamentos.md) para esquema, contratos, status, testes e limitações.
+
+## Estoque Avançado V1 — atualização de 26/09/2026
+
+Inventário físico implementado como `Stocktake`, preservando `Inventories` como saldo único. Migration `20260926150829_AddAdvancedInventoryV1` adiciona `Stocktakes`, `StocktakeItems`, `StocktakeSequences`, campos opcionais de motivo/observação em movimentos e sete permissões. Finalização incremental e transacional, com bloqueio de contagens desatualizadas. Alertas, histórico integrado, ajustes e relatórios disponíveis. Consulte [Estoque Avançado / Inventário V1](14-estoque-avancado.md) para contratos, regras, testes e limitações.

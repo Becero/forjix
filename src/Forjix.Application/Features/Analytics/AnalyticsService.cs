@@ -112,19 +112,7 @@ internal sealed class AnalyticsService(
         lines.AddRange(["", "ESTOQUE BAIXO"]);
         lines.AddRange(report.LowStock.Take(8).Select(x => $"{x.ProductName} - saldo {x.Quantity:N3} / minimo {x.MinimumStock:N3}"));
         var content = "BT /F1 10 Tf 42 800 Td " + string.Join(" Tj 0 -16 Td ", lines.Take(45).Select(x => $"({Escape(Ascii(x))})")) + " Tj ET";
-        var objects = new[] { "<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>", $"<< /Length {Encoding.ASCII.GetByteCount(content)} >>\nstream\n{content}\nendstream", "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>" };
-        var pdf = new StringBuilder("%PDF-1.4\n");
-        var offsets = new List<int> { 0 };
-        for (var index = 0; index < objects.Length; index++)
-        {
-            offsets.Add(Encoding.ASCII.GetByteCount(pdf.ToString()));
-            pdf.Append(CultureInfo.InvariantCulture, $"{index + 1} 0 obj\n{objects[index]}\nendobj\n");
-        }
-        var xref = Encoding.ASCII.GetByteCount(pdf.ToString());
-        pdf.Append(CultureInfo.InvariantCulture, $"xref\n0 {objects.Length + 1}\n0000000000 65535 f \n");
-        foreach (var offset in offsets.Skip(1)) pdf.Append(CultureInfo.InvariantCulture, $"{offset:0000000000} 00000 n \n");
-        pdf.Append(CultureInfo.InvariantCulture, $"trailer << /Size {objects.Length + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF");
-        return Encoding.ASCII.GetBytes(pdf.ToString());
+        return PdfDocument.Create([content]);
     }
 
     private static string Escape(string value) => value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("(", "\\(", StringComparison.Ordinal).Replace(")", "\\)", StringComparison.Ordinal);

@@ -106,12 +106,15 @@ public static class DependencyInjection
         services.AddScoped<ITenantDbContextFactory, TenantDbContextFactory>();
         services.AddScoped<IManagementStoreFactory, ManagementStoreFactory>();
         services.AddScoped<IInventoryStoreFactory, InventoryStoreFactory>();
+        services.AddScoped<IStocktakeStoreFactory, StocktakeStoreFactory>();
         services.AddScoped<ISalesStoreFactory, SalesStoreFactory>();
         services.AddScoped<ICustomerStoreFactory, CustomerStoreFactory>();
         services.AddScoped<IPurchaseStoreFactory, PurchaseStoreFactory>();
         services.AddScoped<ICashStoreFactory, CashStoreFactory>();
         services.AddScoped<IAnalyticsStoreFactory, AnalyticsStoreFactory>();
         services.AddScoped<ISettingsStore, SettingsStore>();
+        services.AddScoped<Application.Abstractions.Financial.IFinancialStoreFactory, Financial.FinancialStoreFactory>();
+        services.AddScoped<Application.Abstractions.Quotes.IQuoteStoreFactory, Quotes.QuoteStoreFactory>();
         services.AddSingleton<IFileStorage, LocalFileStorage>();
         services.AddSingleton<ISecretProvider, ConfigurationSecretProvider>();
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();

@@ -1,5 +1,9 @@
 # Frontend Angular
 
+## Financeiro V1
+
+Quatro rotas lazy protegidas foram adicionadas: /app/financial/receivable, payable, categories e dashboard. FinancialAccounts é reutilizado entre pagar/receber; FinancialApiService centraliza HTTP, versões e Idempotency-Key. PDV aceita venda a prazo e recebimento de compra permite condições financeiras. Veja [Financeiro](12-financeiro.md).
+
 ## Estrutura
 
 `web/forjix-web` é uma aplicação Angular 20 standalone. `main.ts` inicializa `App` com `appConfig`; o router e o `HttpClient` são fornecidos funcionalmente. As telas são lazy-loaded com `loadComponent`.

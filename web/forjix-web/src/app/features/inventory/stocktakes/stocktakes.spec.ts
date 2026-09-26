@@ -1,0 +1,22 @@
+import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
+import { of,throwError } from 'rxjs';
+import { Stocktakes } from './stocktakes';
+import { StockApiService,Stocktake } from '../../../core/api/stock-api.service';
+import { InventoryApiService } from '../../../core/api/inventory-api.service';
+import { AuthSessionStore } from '../../../core/auth/auth-session.store';
+describe('Stocktakes',()=>{
+ let api:jasmine.SpyObj<StockApiService>;let permissions:string[];
+ const item:Stocktake={id:'id',number:'INV-1',status:'Counting',userName:'Ana',openedAt:'2026-09-26',rowVersion:'v',items:[{productId:'p',productName:'Produto',sku:'P',expectedQuantity:10,countedQuantity:null,difference:null}]};
+ beforeEach(()=>{permissions=['stock.inventory.view','stock.inventory.count','stock.inventory.complete'];api=jasmine.createSpyObj('stock',['list','get','save','count','action']);api.list.and.returnValue(of({items:[item],total:1}));api.get.and.returnValue(of(item));api.count.and.returnValue(of(item));api.save.and.returnValue(of(item));api.action.and.returnValue(of({...item,status:'Completed'}));TestBed.configureTestingModule({providers:[{provide:StockApiService,useValue:api},{provide:InventoryApiService,useValue:{}},{provide:AuthSessionStore,useValue:{context:signal({permissions})}}]});});
+ const create=()=>TestBed.runInInjectionContext(()=>new Stocktakes());
+ it('loads list and clears loading',()=>{const p=create();expect(p.items().length).toBe(1);expect(p.loading()).toBeFalse();});
+ it('computes negative differences and submits zero counts',()=>{const p=create();p.show(item);p.counts.at(0).controls.quantity.setValue(0);p.counts.at(0).controls.quantity.markAsDirty();expect(p.difference(0)).toBe(-10);p.saveCounts();expect(api.count).toHaveBeenCalledWith(item,[{productId:'p',quantity:0,notes:''}]);});
+ it('does not submit blank counts',()=>{const p=create();p.show(item);p.saveCounts();expect(api.count).not.toHaveBeenCalled();expect(p.error()).toBeTruthy();});
+ it('requires all counts before showing completion',()=>{const p=create();expect(p.canAction(item,'complete')).toBeFalse();expect(p.canAction({...item,items:[{...item.items[0],countedQuantity:8}]},'complete')).toBeTrue();expect(p.canAction({...item,status:'Completed'},'complete')).toBeFalse();});
+ it('requires cancel reason',()=>{const p=create();p.show(item);p.confirm('cancel');p.execute();expect(api.action).not.toHaveBeenCalled();});
+ it('retains counts and confirmation when concurrent completion fails',()=>{const p=create();api.action.and.returnValue(throwError(()=>({error:{detail:'Recontem o produto.'}})));p.show(item);p.confirm('complete');p.execute();expect(p.error()).toContain('Recontem');expect(p.action()).toBe('complete');expect(p.saving()).toBeFalse();});
+ it('requires products for creation and forwards selection',()=>{const p=create();p.openEditor();p.save();expect(api.save).not.toHaveBeenCalled();p.toggle('p');p.save();expect(api.save).toHaveBeenCalledWith(null,{productIds:['p'],notes:'',rowVersion:undefined});});
+ it('filters counting rows by product or code',()=>{const p=create();p.countSearch.setValue('sku');expect(p.matches('Produto SKU-1')).toBeTrue();expect(p.matches('Outro')).toBeFalse();});
+ it('does not silently rebase untouched saved counts',()=>{const p=create();p.show({...item,items:[{...item.items[0],countedQuantity:8,difference:-2}]});p.saveCounts();expect(api.count).not.toHaveBeenCalled();p.recount(0);expect(p.counts.at(0).controls.quantity.value).toBeNull();expect(p.canAction(p.selected()!,'complete')).toBeFalse();});
+});

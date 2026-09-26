@@ -8,8 +8,8 @@ public sealed record InventoryItem(
 public sealed record InventoryMovementItem(
     long Id, Guid ProductId, string Type, decimal Quantity, decimal PreviousQuantity,
     decimal NewQuantity, string? Reason, string? ReferenceType, string? ReferenceId,
-    Guid UserId, string UserName, DateTimeOffset CreatedAt);
+    Guid UserId, string UserName, DateTimeOffset CreatedAt, string? ReasonCode = null, string? Observation = null);
 
-public sealed record CreateInventoryMovementRequest(string Type, decimal Quantity, string? Reason, string? RowVersion);
+public sealed record CreateInventoryMovementRequest(string Type, decimal Quantity, string? Reason, string? RowVersion, string? ReasonCode = null, string? Observation = null);
 public sealed record InventoryMovementResult(InventoryItem Inventory, InventoryMovementItem Movement);
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int Total);

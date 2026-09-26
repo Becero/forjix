@@ -13,7 +13,7 @@ public interface ISalesStoreFactory
 
 public interface ISalesStore : IAsyncDisposable
 {
-    Task<SaleView> CreateAsync(string idempotencyKey, Guid userId, PaymentMethod paymentMethod, decimal discount, Guid? customerId, IReadOnlyList<CreateSaleItemRequest> items, bool allowNegativeStock, SalesAuditContext audit, DateTimeOffset now, CancellationToken cancellationToken);
+    Task<SaleView> CreateAsync(string idempotencyKey, Guid userId, PaymentMethod paymentMethod, decimal discount, Guid? customerId, IReadOnlyList<CreateSaleItemRequest> items, bool allowNegativeStock, SalesAuditContext audit, DateTimeOffset now, Features.Financial.FinancialTerms? financialTerms, CancellationToken cancellationToken);
     Task<(List<SaleListItem> Items, int Total)> GetAsync(DateTimeOffset? from, DateTimeOffset? through, SaleStatus? status, int page, int pageSize, CancellationToken cancellationToken);
     Task<SaleView?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<SaleView> CancelAsync(Guid id, Guid userId, string reason, byte[] rowVersion, bool allowNegativeStock, SalesAuditContext audit, DateTimeOffset now, CancellationToken cancellationToken);

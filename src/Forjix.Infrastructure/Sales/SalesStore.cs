@@ -21,13 +21,31 @@ internal sealed class SalesStoreFactory(ITenantDbContextFactory contextFactory) 
 
 internal sealed class SalesStore(TenantDbContext db) : ISalesStore
 {
-    public async Task<SaleView> CreateAsync(string idempotencyKey, Guid userId, PaymentMethod paymentMethod, decimal discount, Guid? customerId, IReadOnlyList<CreateSaleItemRequest> requestedItems, bool allowNegativeStock, SalesAuditContext auditContext, DateTimeOffset now, CancellationToken cancellationToken)
+    public async Task<SaleView> CreateAsync(string idempotencyKey, Guid userId, PaymentMethod paymentMethod, decimal discount, Guid? customerId, IReadOnlyList<CreateSaleItemRequest> requestedItems, bool allowNegativeStock, SalesAuditContext auditContext, DateTimeOffset now, Application.Features.Financial.FinancialTerms? financialTerms, CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         try
         {
+            var sale = await CreateInTransactionAsync(idempotencyKey, userId, paymentMethod, discount, customerId, requestedItems, allowNegativeStock, auditContext, now, financialTerms, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return sale;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw new ResourceConflictException("O estoque foi alterado durante a venda. Atualize os produtos e tente novamente.");
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken); throw;
+        }
+    }
+
+    // Caller owns the transaction; quotes share exactly the same sale/stock/cash/financial path.
+    internal async Task<SaleView> CreateInTransactionAsync(string idempotencyKey, Guid userId, PaymentMethod paymentMethod, decimal discount, Guid? customerId, IReadOnlyList<CreateSaleItemRequest> requestedItems, bool allowNegativeStock, SalesAuditContext auditContext, DateTimeOffset now, Application.Features.Financial.FinancialTerms? financialTerms, CancellationToken cancellationToken, Domain.Entities.Quotes.Quote? quote = null)
+    {
             var existing = await SaleQuery().SingleOrDefaultAsync(x => x.IdempotencyKey == idempotencyKey, cancellationToken);
-            if (existing is not null) { await transaction.CommitAsync(cancellationToken); return Map(existing); }
+            if (existing is not null) return Map(existing);
             var cashSession = await db.CashSessions.Include(x => x.Movements).SingleOrDefaultAsync(x => x.Status == CashSessionStatus.Open, cancellationToken)
                 ?? throw new ResourceConflictException("Abra o caixa antes de realizar uma venda.");
 
@@ -37,7 +55,7 @@ internal sealed class SalesStore(TenantDbContext db) : ISalesStore
             if (inventories.Count != productIds.Count) throw new RequestValidationException("Um ou mais produtos não foram encontrados.");
             if (inventories.Any(x => !x.Product.IsActive)) throw new RequestValidationException("Produto inativo não pode ser vendido.");
 
-            var subtotal = items.Sum(item => inventories.Single(x => x.ProductId == item.ProductId).Product.SalePrice * item.Quantity);
+            var subtotal = quote?.Subtotal ?? items.Sum(item => inventories.Single(x => x.ProductId == item.ProductId).Product.SalePrice * item.Quantity);
             if (discount > subtotal) throw new RequestValidationException("O desconto não pode ser maior que o subtotal.");
             var date = DateOnly.FromDateTime(now.UtcDateTime);
             var sequence = await db.SaleSequences.SingleOrDefaultAsync(x => x.Date == date, cancellationToken);
@@ -63,26 +81,19 @@ internal sealed class SalesStore(TenantDbContext db) : ISalesStore
                 InventoryChange change;
                 try { change = inventory.ApplyMovement(InventoryMovementType.Sale, request.Quantity, allowNegativeStock, now); }
                 catch (InvalidOperationException) { throw new RequestValidationException($"Saldo insuficiente para {inventory.Product.Name}."); }
-                var item = new SaleItem { Id = Guid.NewGuid(), ProductId = inventory.ProductId, ProductName = inventory.Product.Name, Sku = inventory.Product.Sku, Quantity = request.Quantity, UnitPrice = inventory.Product.SalePrice, UnitCost = inventory.Product.CostPrice, Discount = 0, Total = inventory.Product.SalePrice * request.Quantity };
+                var snapshot = quote?.Items.Single(x => x.ProductId == request.ProductId);
+                var item = new SaleItem { Id = Guid.NewGuid(), ProductId = inventory.ProductId, ProductName = snapshot?.ProductName ?? inventory.Product.Name, Sku = snapshot?.Sku ?? inventory.Product.Sku, Quantity = request.Quantity, UnitPrice = snapshot?.UnitPrice ?? inventory.Product.SalePrice, UnitCost = inventory.Product.CostPrice, Discount = snapshot?.Discount ?? 0, Total = snapshot?.Total ?? inventory.Product.SalePrice * request.Quantity };
                 sale.Items.Add(item);
                 db.InventoryMovements.Add(new InventoryMovement { InventoryId = inventory.Id, ProductId = inventory.ProductId, Type = InventoryMovementType.Sale, Quantity = request.Quantity, PreviousQuantity = change.PreviousQuantity, NewQuantity = change.NewQuantity, ReferenceType = nameof(Sale), ReferenceId = sale.Id.ToString(), UserId = userId, CreatedAt = now });
             }
             db.Sales.Add(sale);
+            if (paymentMethod == PaymentMethod.Deferred)
+                await Financial.FinancialOriginWriter.FromSaleAsync(db, sale, financialTerms!, userId, auditContext, now, cancellationToken);
             if (paymentMethod == PaymentMethod.Cash) cashSession.Movements.Add(new CashMovement { Type = CashMovementType.Sale, Amount = sale.Total, Reason = sale.Number, SaleId = sale.Id, UserId = userId, CreatedAt = now });
             db.AuditLogs.Add(Audit(AuditAction.SaleCreated, sale.Id, userId, auditContext, now, new { sale.Number, sale.Total, ItemCount = items.Count }));
             await db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
             return Map(await SaleQuery().SingleAsync(x => x.Id == sale.Id, cancellationToken));
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw new ResourceConflictException("O estoque foi alterado durante a venda. Atualize os produtos e tente novamente.");
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken); throw;
-        }
+
     }
 
     public async Task<(List<SaleListItem> Items, int Total)> GetAsync(DateTimeOffset? from, DateTimeOffset? through, SaleStatus? status, int page, int pageSize, CancellationToken cancellationToken)
@@ -106,6 +117,7 @@ internal sealed class SalesStore(TenantDbContext db) : ISalesStore
         {
             var sale = await db.Sales.Include(x => x.User).Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw new ResourceNotFoundException("Venda não encontrada.");
             if (sale.Status == SaleStatus.Cancelled) throw new ResourceConflictException("Esta venda já foi cancelada.");
+            await Financial.FinancialOriginWriter.CancelSaleAsync(db, sale.Id, userId, auditContext, now, cancellationToken);
             db.Entry(sale).Property(x => x.RowVersion).OriginalValue = rowVersion;
             var productIds = sale.Items.Select(x => x.ProductId).ToList();
             var inventories = await db.Inventories.Where(x => productIds.Contains(x.ProductId)).ToListAsync(cancellationToken);

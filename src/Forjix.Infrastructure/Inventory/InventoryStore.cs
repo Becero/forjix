@@ -52,7 +52,7 @@ internal sealed class InventoryStore(TenantDbContext db) : IInventoryStore
         var total = await query.CountAsync(cancellationToken);
         var items = await query.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(x => new InventoryMovementItem(x.Id, x.ProductId, x.Type.ToString(), x.Quantity, x.PreviousQuantity, x.NewQuantity, x.Reason, x.ReferenceType, x.ReferenceId, x.UserId, x.User.Name, x.CreatedAt))
+            .Select(x => new InventoryMovementItem(x.Id, x.ProductId, x.Type.ToString(), x.Quantity, x.PreviousQuantity, x.NewQuantity, x.Reason, x.ReferenceType, x.ReferenceId, x.UserId, x.User.Name, x.CreatedAt, x.ReasonCode, x.Observation))
             .ToListAsync(cancellationToken);
         return (items, total);
     }

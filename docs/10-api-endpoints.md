@@ -1,5 +1,9 @@
 # API e endpoints
 
+## Financeiro V1
+
+Os quatro controllers financeiros adicionam vinte endpoints com políticas próprias; contratos, requests/responses, rotas e permissões estão na [referência financeira](12-financeiro.md#api-e-contratos). Vendas aceitam PaymentMethod Deferred e financialTerms; recebimento de compra aceita financialTerms opcional. Os endpoints anteriores permanecem abaixo.
+
 ## Convenções
 
 - Base relativa: `/api`; controllers usam JSON, salvo upload/download.
@@ -124,3 +128,11 @@ São 17 controllers. Health checks e fallback são mapeados diretamente em `Prog
 | qualquer `/api/{**path}` não mapeado | `404 ProblemDetails` | conforme pipeline | fallback explícito |
 
 O OpenAPI é mapeado somente em `Development`; o código não mantém um contrato OpenAPI versionado nem um cliente Angular gerado.
+
+## Orçamentos V1 — atualização de 26/09/2026
+
+O módulo comercial de orçamentos está implementado. A migration tenant `20260926144839_AddQuotesV1` acrescenta `Quotes`, `QuoteItems` e `QuoteSequences`, sete permissões `quotes.*` e os endpoints `/api/quotes`. Criação não movimenta estoque nem financeiro; conversão aprovada reutiliza a venda em transação única. Consulte [Orçamentos V1](13-orcamentos.md) para esquema, contratos, status, testes e limitações.
+
+## Estoque Avançado V1 — atualização de 26/09/2026
+
+Inventário físico implementado como `Stocktake`, preservando `Inventories` como saldo único. Migration `20260926150829_AddAdvancedInventoryV1` adiciona `Stocktakes`, `StocktakeItems`, `StocktakeSequences`, campos opcionais de motivo/observação em movimentos e sete permissões. Finalização incremental e transacional, com bloqueio de contagens desatualizadas. Alertas, histórico integrado, ajustes e relatórios disponíveis. Consulte [Estoque Avançado / Inventário V1](14-estoque-avancado.md) para contratos, regras, testes e limitações.

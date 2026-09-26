@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Forjix.Application.Abstractions.Authorization;
 using Forjix.Application.Abstractions.Identity;
 using Forjix.Application.Abstractions.Inventory;
 using Forjix.Application.Abstractions.Tenancy;
@@ -13,7 +14,8 @@ internal sealed class InventoryService(
     ITenantDatabaseResolver tenantResolver,
     IInventoryStoreFactory storeFactory,
     ICurrentUser currentUser,
-    TimeProvider timeProvider) : IInventoryService
+    TimeProvider timeProvider,
+    IPermissionChecker permissions) : IInventoryService
 {
     public async Task<IReadOnlyList<InventoryItem>> GetAsync(string? search, Guid? categoryId, string? status, CancellationToken cancellationToken = default)
     {
@@ -50,7 +52,9 @@ internal sealed class InventoryService(
     public async Task<InventoryMovementResult> CreateMovementAsync(Guid productId, CreateInventoryMovementRequest request, CancellationToken cancellationToken = default)
     {
         if (!Enum.TryParse<InventoryMovementType>(request.Type, true, out var type) || !Enum.IsDefined(type)) throw new RequestValidationException("Tipo de movimentação inválido.");
-        if (request.Quantity <= 0) throw new RequestValidationException("A quantidade deve ser maior que zero.");
+        if (type is not (InventoryMovementType.StockEntry or InventoryMovementType.StockExit or InventoryMovementType.PositiveAdjustment or InventoryMovementType.NegativeAdjustment)) throw new RequestValidationException("Utilize o fluxo de compra, venda ou inventário para esta origem.");
+        if (request.Observation?.Length > 500 || request.ReasonCode is not null && (!Enum.TryParse<StockAdjustmentReason>(request.ReasonCode, out var code) || !Enum.IsDefined(code) || code == StockAdjustmentReason.Inventory)) throw new RequestValidationException("Motivo ou observação inválida.");
+        if (request.Quantity <= 0 || request.Quantity > 999999999999999.999m || decimal.Round(request.Quantity, 3) != request.Quantity) throw new RequestValidationException("A quantidade deve ser maior que zero.");
         var reason = Clean(request.Reason);
         if (type is InventoryMovementType.PositiveAdjustment or InventoryMovementType.NegativeAdjustment && reason is null) throw new RequestValidationException("Informe o motivo do ajuste.");
         if (reason?.Length > 500) throw new RequestValidationException("O motivo deve ter no máximo 500 caracteres.");
@@ -71,6 +75,7 @@ internal sealed class InventoryService(
             var inventory = await store.GetByProductAsync(productId, cancellationToken) ?? throw new ResourceNotFoundException("Estoque do produto não encontrado.");
             if (!inventory.Product.IsActive) throw new RequestValidationException("Produto inativo não pode receber movimentações.");
             if (!inventory.RowVersion.SequenceEqual(expectedRowVersion)) throw new ResourceConflictException("O estoque foi movimentado por outro usuário. Atualize a página e tente novamente.");
+            if (type is InventoryMovementType.PositiveAdjustment or InventoryMovementType.NegativeAdjustment && !await permissions.HasPermissionAsync(tenant.TenantId, currentUser.UserId!.Value, Permissions.StockAdjust, cancellationToken)) throw new PermissionDeniedException("Seu grupo não permite ajustes de estoque.");
             var allowNegative = tenant.Settings.TryGetValue(TenantSettingKeys.AllowNegativeStock, out var setting) && bool.TryParse(setting, out var enabled) ? enabled : TenantSettingDefaults.AllowNegativeStock;
             var now = timeProvider.GetUtcNow();
             InventoryChange change;
@@ -87,13 +92,16 @@ internal sealed class InventoryService(
                 PreviousQuantity = change.PreviousQuantity,
                 NewQuantity = change.NewQuantity,
                 Reason = reason,
+                ReasonCode = request.ReasonCode,
+                Observation = request.Observation?.Trim(),
+                ReferenceType = "ManualAdjustment",
                 UserId = userId,
                 CreatedAt = now
             };
             var audit = new AuditLog
             {
                 UserId = userId,
-                Action = AuditAction.StockMovementCreated,
+                Action = type is InventoryMovementType.PositiveAdjustment or InventoryMovementType.NegativeAdjustment ? AuditAction.StockAdjusted : AuditAction.StockMovementCreated,
                 EntityName = nameof(InventoryMovement),
                 EntityId = productId.ToString(),
                 AfterData = JsonSerializer.Serialize(new { ProductId = productId, Type = type.ToString() }),
@@ -114,7 +122,7 @@ internal sealed class InventoryService(
     }
 
     private static InventoryItem Map(Forjix.Domain.Entities.Inventory.Inventory value) => new(value.ProductId, value.Product.Name, value.Product.Sku, value.Product.Barcode, value.Product.CategoryId, value.Product.Category.Name, value.Quantity, value.Product.MinimumStock, value.Product.CostPrice, value.Product.SalePrice, Status(value.Quantity, value.Product.MinimumStock), value.Movements.OrderByDescending(x => x.CreatedAt).Select(x => (DateTimeOffset?)x.CreatedAt).FirstOrDefault(), Convert.ToBase64String(value.RowVersion));
-    private static InventoryMovementItem Map(InventoryMovement value, string userName) => new(value.Id, value.ProductId, value.Type.ToString(), value.Quantity, value.PreviousQuantity, value.NewQuantity, value.Reason, value.ReferenceType, value.ReferenceId, value.UserId, userName, value.CreatedAt);
+    private static InventoryMovementItem Map(InventoryMovement value, string userName) => new(value.Id, value.ProductId, value.Type.ToString(), value.Quantity, value.PreviousQuantity, value.NewQuantity, value.Reason, value.ReferenceType, value.ReferenceId, value.UserId, userName, value.CreatedAt, value.ReasonCode, value.Observation);
     private static string Status(decimal quantity, decimal minimum) => quantity < 0 ? "Negative" : quantity == 0 ? "OutOfStock" : quantity <= minimum ? "Low" : "Normal";
     private static void ValidateStatus(string? status) { if (!string.IsNullOrWhiteSpace(status) && status is not ("Normal" or "Low" or "OutOfStock" or "Negative")) throw new RequestValidationException("Situação de estoque inválida."); }
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

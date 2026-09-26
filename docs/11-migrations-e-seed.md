@@ -11,7 +11,7 @@ Fluxo executado por `Program.cs`:
 3. executa o provisionamento opcional compatível com o ambiente;
 4. consulta todos os tenants ativos com banco configurado;
 5. resolve cada `TenantDatabase.SecretReference` na configuração;
-6. aplica as migrations do tenant em um `ForjixTenantDbContext` novo;
+6. aplica as migrations do tenant em um `TenantDbContext` novo;
 7. atualiza `TenantDatabases.SchemaVersion` e `LastMigratedAt`;
 8. registra uma `MigrationExecution` como `Succeeded` ou `Failed`;
 9. define código de saída `1` se algum tenant falhar.
@@ -36,6 +36,9 @@ Fluxo executado por `Program.cs`:
 | 6 | `20260913164107_AddCustomers` |
 | 7 | `20260913164531_AddSuppliersAndPurchases` |
 | 8 | `20260913164852_AddCashRegister` |
+| 9 | `20260926133300_AddFinancialV1` |
+
+Financeiro V1 adiciona quatro tabelas e nove permissões por tenant. Não altera Master, não gera títulos históricos e não exige seed habilitado para atualizar schemas/permissões existentes. Veja [Financeiro](12-financeiro.md).
 
 Além das tabelas da aplicação, o EF Core mantém `__EFMigrationsHistory` em cada banco migrado. A definição dessa tabela é convenção do provider e não aparece como entidade no modelo Forjix.
 
@@ -85,3 +88,11 @@ dotnet run --project .\tools\Forjix.DatabaseMigrator -c Release
 ```
 
 O provider de configuração converte `__` em `:`. `Set-Item` evita a ambiguidade do hífen no nome da variável PowerShell. Outras plataformas podem impor regras diferentes, portanto a configuração do ambiente de destino deve ser conferida. O exemplo acima é apenas ilustrativo e não contém credenciais reais.
+
+## Orçamentos V1 — atualização de 26/09/2026
+
+O módulo comercial de orçamentos está implementado. A migration tenant `20260926144839_AddQuotesV1` acrescenta `Quotes`, `QuoteItems` e `QuoteSequences`, sete permissões `quotes.*` e os endpoints `/api/quotes`. Criação não movimenta estoque nem financeiro; conversão aprovada reutiliza a venda em transação única. Consulte [Orçamentos V1](13-orcamentos.md) para esquema, contratos, status, testes e limitações.
+
+## Estoque Avançado V1 — atualização de 26/09/2026
+
+Inventário físico implementado como `Stocktake`, preservando `Inventories` como saldo único. Migration `20260926150829_AddAdvancedInventoryV1` adiciona `Stocktakes`, `StocktakeItems`, `StocktakeSequences`, campos opcionais de motivo/observação em movimentos e sete permissões. Finalização incremental e transacional, com bloqueio de contagens desatualizadas. Alertas, histórico integrado, ajustes e relatórios disponíveis. Consulte [Estoque Avançado / Inventário V1](14-estoque-avancado.md) para contratos, regras, testes e limitações.

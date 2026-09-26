@@ -8,6 +8,7 @@ using Forjix.Domain.Enums;
 using Forjix.Infrastructure.Persistence.Master;
 using Forjix.Infrastructure.Persistence.Tenant;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace Forjix.IntegrationTests;
 
@@ -25,6 +26,7 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
     private const string TenantB = "empresa-b-ci";
     private const string AdminEmail = "admin@teste.local";
     private const string ViewerEmail = "viewer@teste.local";
+    private static readonly string[] StockOnlyPermissions = ["stock.view", "stock.manage"];
 
     [SqlFact]
     public async Task MasterAndTenantMigrationsAreApplied()
@@ -463,6 +465,407 @@ public sealed class SqlServerAcceptanceTests(ForjixWebApplicationFactory factory
         await using var db = CreateTenantDb(TenantA); Assert.Equal(50, await db.Inventories.Where(x => x.ProductId == productId).Select(x => x.Quantity).SingleAsync()); Assert.Equal(1, await db.InventoryMovements.CountAsync(x => x.ProductId == productId && x.Type == InventoryMovementType.Purchase));
         Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/purchases/{purchaseId}/cancel", admin.AccessToken, new { rowVersion = version })).StatusCode);
         var adminB = await LoginAsync(client, TenantB, AdminEmail); Assert.Equal(HttpStatusCode.NotFound, (await AuthorizedGetAsync(client, $"/api/purchases/{purchaseId}", adminB.AccessToken)).StatusCode); using var suppliersB = await ReadJsonAsync(await AuthorizedGetAsync(client, $"/api/suppliers?search={doc}", adminB.AccessToken)); Assert.Equal(0, suppliersB.RootElement.GetProperty("total").GetInt32());
+    }
+
+    [SqlFact]
+    public async Task FinancialInstallmentsPaymentsReversalsAndTenantIsolation()
+    {
+        using var client = Client(); var admin = await LoginAsync(client, TenantA, AdminEmail);
+        var token = admin.AccessToken; var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var categoryId = await CreateFinancialCategoryAsync(client, token, "Income");
+        var create = await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/financial/accounts-receivable", token,
+            new { financialCategoryId = categoryId, description = "Parcelamento SQL", amount = 100m, issueDate = today.AddDays(-2), dueDate = today.AddDays(-1), installments = 3 });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode); using var accounts = await ReadJsonAsync(create);
+        var rows = accounts.RootElement.EnumerateArray().ToArray(); Assert.Equal(3, rows.Length);
+        Assert.Equal(100m, rows.Sum(x => x.GetProperty("originalAmount").GetDecimal()));
+        Assert.Equal(33.34m, rows[0].GetProperty("originalAmount").GetDecimal());
+        Assert.Equal("Overdue", rows[0].GetProperty("status").GetString());
+        var id = rows[0].GetProperty("id").GetGuid(); var path = $"/api/financial/accounts-receivable/{id}";
+        var version = rows[0].GetProperty("rowVersion").GetString();
+        var other = await LoginAsync(client, TenantB, AdminEmail);
+        Assert.Equal(HttpStatusCode.NotFound, (await AuthorizedGetAsync(client, path, other.AccessToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/financial/accounts-receivable", other.AccessToken,
+            new { financialCategoryId = categoryId, description = "Não pode cruzar tenant", amount = 10m, issueDate = today, dueDate = today, installments = 1 })).StatusCode);
+        var viewer = await LoginAsync(client, TenantA, ViewerEmail);
+        Assert.Equal(HttpStatusCode.Forbidden, (await AuthorizedGetAsync(client, "/api/financial/dashboard", viewer.AccessToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/payments", viewer.AccessToken, new { })).StatusCode);
+        var key = Guid.NewGuid().ToString("N");
+        var body = new { amount = 10m, paymentDate = today, paymentMethod = "Pix", discount = 0m, interest = 0m, penalty = 0m, rowVersion = version };
+        using var partial = await ReadJsonAsync(await AuthorizedIdempotentJsonAsync(client, path + "/payments", token, key, body));
+        Assert.Equal(23.34m, partial.RootElement.GetProperty("openAmount").GetDecimal());
+        Assert.Equal(HttpStatusCode.OK, (await AuthorizedIdempotentJsonAsync(client, path + "/payments", token, key, body)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedIdempotentJsonAsync(client, path + "/payments", token, Guid.NewGuid().ToString("N"), body)).StatusCode);
+        using var fresh = await ReadJsonAsync(await AuthorizedGetAsync(client, path, token));
+        var current = fresh.RootElement.GetProperty("rowVersion").GetString();
+        Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedIdempotentJsonAsync(client, path + "/payments", token, Guid.NewGuid().ToString("N"),
+            new { amount = 50m, paymentDate = today, paymentMethod = "Pix", rowVersion = current })).StatusCode);
+        using var paid = await ReadJsonAsync(await AuthorizedIdempotentJsonAsync(client, path + "/payments", token, Guid.NewGuid().ToString("N"),
+            new { amount = 23.34m, paymentDate = today, paymentMethod = "Pix", rowVersion = current }));
+        Assert.Equal("Paid", paid.RootElement.GetProperty("status").GetString());
+        Assert.Equal(0m, paid.RootElement.GetProperty("openAmount").GetDecimal());
+        using var payments = await ReadJsonAsync(await AuthorizedGetAsync(client, path + "/payments", token));
+        Assert.Equal(2, payments.RootElement.GetArrayLength());
+        foreach (var payment in payments.RootElement.EnumerateArray())
+        {
+            var reversalPath = path + $"/payments/{payment.GetProperty("id").GetGuid()}/reverse";
+            var reversal = new { reason = "Teste de estorno", rowVersion = payment.GetProperty("rowVersion").GetString() };
+            Assert.Equal(HttpStatusCode.OK, (await AuthorizedJsonAsync(client, HttpMethod.Post, reversalPath, token, reversal)).StatusCode);
+            Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedJsonAsync(client, HttpMethod.Post, reversalPath, token, reversal)).StatusCode);
+        }
+        using var restored = await ReadJsonAsync(await AuthorizedGetAsync(client, path, token));
+        Assert.Equal(33.34m, restored.RootElement.GetProperty("openAmount").GetDecimal());
+        Assert.Equal(HttpStatusCode.OK, (await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/cancel", token,
+            new { reason = "Sem obrigação", rowVersion = restored.RootElement.GetProperty("rowVersion").GetString() })).StatusCode);
+        using var filtered = await ReadJsonAsync(await AuthorizedGetAsync(client, $"/api/financial/accounts-receivable?categoryId={categoryId}&status=Cancelled", token));
+        Assert.Equal(1, filtered.RootElement.GetProperty("total").GetInt32());
+        await using var db = CreateTenantDb(TenantA);
+        Assert.Equal(2, await db.FinancialPayments.CountAsync(x => x.AccountReceivableId == id));
+        Assert.True(await db.AuditLogs.AnyAsync(x => x.Action == AuditAction.FinancialPaymentReversed));
+    }
+
+    [SqlFact]
+    public async Task FinancialCashWritesAreAtomicAndReversalsRestoreTheCashBalance()
+    {
+        using var client = Client(); var admin = await LoginAsync(client, TenantA, AdminEmail); var token = admin.AccessToken;
+        await EnsureCashClosedAsync(client, token); var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var categoryId = await CreateFinancialCategoryAsync(client, token, "Expense");
+        using var created = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/financial/accounts-payable", token,
+            new { financialCategoryId = categoryId, description = "Despesa em dinheiro", amount = 30m, issueDate = today, dueDate = today, installments = 1 }));
+        var account = created.RootElement[0]; var id = account.GetProperty("id").GetGuid(); var path = $"/api/financial/accounts-payable/{id}";
+        var key = Guid.NewGuid().ToString("N"); var body = new { amount = 30m, paymentDate = today, paymentMethod = "Cash", rowVersion = account.GetProperty("rowVersion").GetString() };
+        Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedIdempotentJsonAsync(client, path + "/payments", token, key, body)).StatusCode);
+        await using (var db = CreateTenantDb(TenantA))
+        {
+            Assert.Equal(30m, await db.AccountsPayable.Where(x => x.Id == id).Select(x => x.OpenAmount).SingleAsync());
+            Assert.False(await db.FinancialPayments.AnyAsync(x => x.AccountPayableId == id));
+        }
+        Assert.Equal(HttpStatusCode.Created, (await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/cash/open", token, new { openingAmount = 100m })).StatusCode);
+        using var paid = await ReadJsonAsync(await AuthorizedIdempotentJsonAsync(client, path + "/payments", token, key, body));
+        using var cash = await ReadJsonAsync(await AuthorizedGetAsync(client, "/api/cash/current", token));
+        Assert.Equal(70m, cash.RootElement.GetProperty("expectedAmount").GetDecimal());
+        using var payments = await ReadJsonAsync(await AuthorizedGetAsync(client, path + "/payments", token)); var payment = payments.RootElement[0];
+        Assert.Equal(HttpStatusCode.OK, (await AuthorizedJsonAsync(client, HttpMethod.Post, path + $"/payments/{payment.GetProperty("id").GetGuid()}/reverse", token,
+            new { reason = "Correção", rowVersion = payment.GetProperty("rowVersion").GetString() })).StatusCode);
+        using var cashRestored = await ReadJsonAsync(await AuthorizedGetAsync(client, "/api/cash/current", token));
+        Assert.Equal(100m, cashRestored.RootElement.GetProperty("expectedAmount").GetDecimal());
+        var income = await CreateFinancialCategoryAsync(client, token, "Income");
+        using var receivable = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/financial/accounts-receivable", token,
+            new { financialCategoryId = income, description = "Recebimento em dinheiro", amount = 20m, issueDate = today, dueDate = today, installments = 1 }));
+        var receipt = receivable.RootElement[0];
+        var receiptPath = $"/api/financial/accounts-receivable/{receipt.GetProperty("id").GetGuid()}";
+        Assert.Equal(HttpStatusCode.OK, (await AuthorizedIdempotentJsonAsync(client, receiptPath + "/payments", token, Guid.NewGuid().ToString("N"),
+            new { amount = 20m, paymentDate = today, paymentMethod = "Cash", rowVersion = receipt.GetProperty("rowVersion").GetString() })).StatusCode);
+        using var cashIncome = await ReadJsonAsync(await AuthorizedGetAsync(client, "/api/cash/current", token));
+        Assert.Equal(120m, cashIncome.RootElement.GetProperty("expectedAmount").GetDecimal());
+        await EnsureCashClosedAsync(client, token);
+    }
+
+    [SqlFact]
+    public async Task FinancialDashboardKeepsPaymentsInTheirPeriodAndDeductsReversalsInTheCurrentPeriod()
+    {
+        using var client = Client(); var admin = await LoginAsync(client, TenantA, AdminEmail); var token = admin.AccessToken;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow); var yesterday = today.AddDays(-1);
+        var category = await CreateFinancialCategoryAsync(client, token, "Income");
+        var oldDashboard = $"/api/financial/dashboard?from={yesterday:yyyy-MM-dd}&through={yesterday:yyyy-MM-dd}";
+        var currentDashboard = $"/api/financial/dashboard?from={today:yyyy-MM-dd}&through={today:yyyy-MM-dd}";
+        using var baselineOld = await ReadJsonAsync(await AuthorizedGetAsync(client, oldDashboard, token));
+        using var baselineToday = await ReadJsonAsync(await AuthorizedGetAsync(client, currentDashboard, token));
+        using var accounts = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/financial/accounts-receivable", token,
+            new { financialCategoryId = category, description = "Fluxo por período", amount = 10m, issueDate = yesterday, dueDate = today, installments = 1 }));
+        var account = accounts.RootElement[0]; var id = account.GetProperty("id").GetGuid();
+        var path = $"/api/financial/accounts-receivable/{id}";
+        Assert.Equal(HttpStatusCode.OK, (await AuthorizedIdempotentJsonAsync(client, path + "/payments", token, Guid.NewGuid().ToString("N"),
+            new { amount = 10m, paymentDate = yesterday, paymentMethod = "Pix", rowVersion = account.GetProperty("rowVersion").GetString() })).StatusCode);
+        using var payments = await ReadJsonAsync(await AuthorizedGetAsync(client, path + "/payments", token)); var payment = payments.RootElement[0];
+        Assert.Equal(HttpStatusCode.OK, (await AuthorizedJsonAsync(client, HttpMethod.Post, path + $"/payments/{payment.GetProperty("id").GetGuid()}/reverse", token,
+            new { reason = "Estorno em período diferente", rowVersion = payment.GetProperty("rowVersion").GetString() })).StatusCode);
+        using var afterOld = await ReadJsonAsync(await AuthorizedGetAsync(client, oldDashboard, token));
+        using var afterToday = await ReadJsonAsync(await AuthorizedGetAsync(client, currentDashboard, token));
+        Assert.Equal(baselineOld.RootElement.GetProperty("received").GetDecimal() + 10m, afterOld.RootElement.GetProperty("received").GetDecimal());
+        Assert.Equal(baselineToday.RootElement.GetProperty("received").GetDecimal() - 10m, afterToday.RootElement.GetProperty("received").GetDecimal());
+    }
+
+    [SqlFact]
+    public async Task DeferredSalesAndReceivedPurchasesGenerateFinancialAccountsExactlyOnce()
+    {
+        using var client = Client(); var admin = await LoginAsync(client, TenantA, AdminEmail); var token = admin.AccessToken;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow); await EnsureCashClosedAsync(client, token);
+        Assert.Equal(HttpStatusCode.Created, (await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/cash/open", token, new { openingAmount = 0 })).StatusCode);
+        var income = await CreateFinancialCategoryAsync(client, token, "Income"); var expense = await CreateFinancialCategoryAsync(client, token, "Expense");
+        using var customer = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/customers", token,
+            new { name = "Cliente Financeiro", document = Random.Shared.NextInt64(10_000_000_000, 99_999_999_999).ToString(CultureInfo.InvariantCulture), isActive = true }));
+        using var supplier = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/suppliers", token,
+            new { name = "Fornecedor Financeiro", document = Random.Shared.NextInt64(10_000_000_000, 99_999_999_999).ToString(CultureInfo.InvariantCulture), isActive = true }));
+        var customerId = customer.RootElement.GetProperty("id").GetGuid(); var supplierId = supplier.RootElement.GetProperty("id").GetGuid();
+        var productId = await CreateProductAsync(client, token, "FIN");
+        using var inventory = await ReadJsonAsync(await AuthorizedGetAsync(client, $"/api/inventory/{productId}", token));
+        Assert.Equal(HttpStatusCode.OK, (await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/inventory/{productId}/movements", token,
+            new { type = "StockEntry", quantity = 10, reason = "Financeiro", rowVersion = inventory.RootElement.GetProperty("rowVersion").GetString() })).StatusCode);
+        var key = Guid.NewGuid().ToString("N");
+        var saleRequest = new { paymentMethod = "Deferred", customerId, discount = 0, financialTerms = new { financialCategoryId = income, firstDueDate = today, installments = 3 }, items = new[] { new { productId, quantity = 2 } } };
+        using var sale = await ReadJsonAsync(await AuthorizedIdempotentJsonAsync(client, "/api/sales", token, key, saleRequest));
+        var saleId = sale.RootElement.GetProperty("id").GetGuid();
+        Assert.Equal(HttpStatusCode.Created, (await AuthorizedIdempotentJsonAsync(client, "/api/sales", token, key, saleRequest)).StatusCode);
+        await using var db = CreateTenantDb(TenantA);
+        var receivables = await db.AccountsReceivable.AsNoTracking().Where(x => x.SaleId == saleId).OrderBy(x => x.InstallmentNumber).ToListAsync();
+        Assert.Equal(3, receivables.Count); Assert.Equal(20m, receivables.Sum(x => x.OriginalAmount));
+        Assert.False(await db.CashMovements.AnyAsync(x => x.SaleId == saleId));
+        var accountPath = $"/api/financial/accounts-receivable/{receivables[0].Id}";
+        using var payment = await ReadJsonAsync(await AuthorizedIdempotentJsonAsync(client, accountPath + "/payments", token, Guid.NewGuid().ToString("N"),
+            new { amount = 1m, paymentDate = today, paymentMethod = "Pix", rowVersion = Convert.ToBase64String(receivables[0].RowVersion) }));
+        var cancelSale = new { reason = "Cancelamento financeiro", rowVersion = sale.RootElement.GetProperty("rowVersion").GetString() };
+        Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/sales/{saleId}/cancel", token, cancelSale)).StatusCode);
+        Assert.Equal(8m, await db.Inventories.Where(x => x.ProductId == productId).Select(x => x.Quantity).SingleAsync());
+        using var payments = await ReadJsonAsync(await AuthorizedGetAsync(client, accountPath + "/payments", token)); var paid = payments.RootElement[0];
+        Assert.Equal(HttpStatusCode.OK, (await AuthorizedJsonAsync(client, HttpMethod.Post, accountPath + $"/payments/{paid.GetProperty("id").GetGuid()}/reverse", token,
+            new { reason = "Antes de cancelar venda", rowVersion = paid.GetProperty("rowVersion").GetString() })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/sales/{saleId}/cancel", token, cancelSale)).StatusCode);
+        Assert.Equal(3, await db.AccountsReceivable.CountAsync(x => x.SaleId == saleId && x.Status == FinancialAccountStatus.Cancelled));
+        Assert.Equal(10m, await db.Inventories.Where(x => x.ProductId == productId).Select(x => x.Quantity).SingleAsync());
+        using var purchase = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/purchases", token,
+            new { supplierId, items = new[] { new { productId, quantity = 3, unitCost = 4.01m } } }));
+        var purchaseId = purchase.RootElement.GetProperty("id").GetGuid();
+        var receive = new { rowVersion = purchase.RootElement.GetProperty("rowVersion").GetString(), financialTerms = new { financialCategoryId = expense, firstDueDate = today, installments = 2 } };
+        Assert.Equal(HttpStatusCode.OK, (await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/purchases/{purchaseId}/receive", token, receive)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/purchases/{purchaseId}/receive", token, receive)).StatusCode);
+        var payables = await db.AccountsPayable.AsNoTracking().Where(x => x.PurchaseId == purchaseId).OrderBy(x => x.InstallmentNumber).ToListAsync();
+        Assert.Equal(2, payables.Count); Assert.Equal(12.03m, payables.Sum(x => x.OriginalAmount)); Assert.Equal(6.02m, payables[0].OriginalAmount);
+        Assert.All(payables, x => { Assert.Equal(supplierId, x.SupplierId); Assert.Equal(expense, x.FinancialCategoryId); });
+        using var dashboard = await ReadJsonAsync(await AuthorizedGetAsync(client, $"/api/financial/dashboard?from={today:yyyy-MM-dd}&through={today:yyyy-MM-dd}", token));
+        Assert.True(dashboard.RootElement.GetProperty("totalPayable").GetDecimal() >= 12.03m);
+        await EnsureCashClosedAsync(client, token);
+    }
+
+    private static async Task<Guid> CreateFinancialCategoryAsync(HttpClient client, string token, string type)
+    {
+        using var response = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/financial/categories", token,
+            new { name = $"Financeiro {Guid.NewGuid():N}", type, isActive = true }));
+        return response.RootElement.GetProperty("id").GetGuid();
+    }
+
+    [SqlFact]
+    public async Task QuoteLifecyclePreservesSnapshotsAndConvertsAtomicallyThroughExistingSaleFlow()
+    {
+        using var client = Client(); var admin = await LoginAsync(client, TenantA, AdminEmail); var token = admin.AccessToken;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow); await EnsureCashClosedAsync(client, token);
+        var productId = await CreateProductAsync(client, token, "QUOTE");
+        using var customer = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/customers", token,
+            new { name = "Cliente Orçamento", isActive = true }));
+        var customerId = customer.RootElement.GetProperty("id").GetGuid();
+        var request = new { customerId, validUntil = today.AddDays(15), discount = 2m, notes = "Orçamento SQL", items = new[] { new { productId, quantity = 2m, discount = 1m } } };
+        using var created = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/quotes", token, request));
+        var id = created.RootElement.GetProperty("id").GetGuid(); var path = $"/api/quotes/{id}";
+        Assert.Equal("Draft", created.RootElement.GetProperty("status").GetString()); Assert.Equal(17m, created.RootElement.GetProperty("total").GetDecimal());
+        await using var db = CreateTenantDb(TenantA);
+        Assert.Equal(0m, await db.Inventories.Where(x => x.ProductId == productId).Select(x => x.Quantity).SingleAsync());
+        Assert.False(await db.InventoryMovements.AnyAsync(x => x.ProductId == productId)); Assert.False(await db.Sales.AnyAsync(x => x.Items.Any(i => i.ProductId == productId)));
+        Assert.False(await db.AccountsReceivable.AnyAsync(x => x.CustomerId == customerId));
+        var viewer = await LoginAsync(client, TenantA, ViewerEmail);
+        Assert.Equal(HttpStatusCode.Forbidden, (await AuthorizedGetAsync(client, "/api/quotes", viewer.AccessToken)).StatusCode);
+        var other = await LoginAsync(client, TenantB, AdminEmail);
+        Assert.Equal(HttpStatusCode.NotFound, (await AuthorizedGetAsync(client, path, other.AccessToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await AuthorizedGetAsync(client, path + "/pdf", other.AccessToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/quotes", other.AccessToken, request)).StatusCode);
+        var version = created.RootElement.GetProperty("rowVersion").GetString();
+        using var edited = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Put, path, token,
+            new { customerId, validUntil = today.AddDays(15), discount = 2m, notes = "Editado", rowVersion = version, items = new[] { new { productId, quantity = 2m, discount = 1m } } }));
+        using var sent = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/send", token, new { rowVersion = edited.RootElement.GetProperty("rowVersion").GetString() }));
+        Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/approve", token, new { rowVersion = version })).StatusCode);
+        using var approved = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/approve", token, new { rowVersion = sent.RootElement.GetProperty("rowVersion").GetString() }));
+        version = approved.RootElement.GetProperty("rowVersion").GetString();
+        Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/convert-to-sale", token, new { rowVersion = version, paymentMethod = "Pix" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/cash/open", token, new { openingAmount = 0 })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/convert-to-sale", token, new { rowVersion = version, paymentMethod = "Pix" })).StatusCode);
+        Assert.False(await db.Sales.AnyAsync(x => x.Items.Any(i => i.ProductId == productId)));
+        Assert.Equal(QuoteStatus.Approved, await db.Quotes.Where(x => x.Id == id).Select(x => x.Status).SingleAsync());
+        using var inventory = await ReadJsonAsync(await AuthorizedGetAsync(client, $"/api/inventory/{productId}", token));
+        Assert.Equal(HttpStatusCode.OK, (await AuthorizedJsonAsync(client, HttpMethod.Post, $"/api/inventory/{productId}/movements", token,
+            new { type = "StockEntry", quantity = 10m, reason = "Conversão", rowVersion = inventory.RootElement.GetProperty("rowVersion").GetString() })).StatusCode);
+        var product = await db.Products.SingleAsync(x => x.Id == productId); product.SalePrice = 20; await db.SaveChangesAsync();
+        Assert.Equal(HttpStatusCode.BadRequest, (await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/convert-to-sale", token,
+            new { rowVersion = version, paymentMethod = "Deferred", financialTerms = new { financialCategoryId = Guid.NewGuid(), firstDueDate = today, installments = 2 } })).StatusCode);
+        Assert.Equal(10m, await db.Inventories.AsNoTracking().Where(x => x.ProductId == productId).Select(x => x.Quantity).SingleAsync());
+        Assert.False(await db.Sales.AnyAsync(x => x.Items.Any(i => i.ProductId == productId)));
+        var category = await CreateFinancialCategoryAsync(client, token, "Income");
+        var conversion = new { rowVersion = version, paymentMethod = "Deferred", financialTerms = new { financialCategoryId = category, firstDueDate = today, installments = 2 } };
+        using var sale = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/convert-to-sale", token, conversion));
+        var saleId = sale.RootElement.GetProperty("id").GetGuid();
+        Assert.Equal(17m, sale.RootElement.GetProperty("total").GetDecimal()); Assert.Equal(10m, sale.RootElement.GetProperty("items")[0].GetProperty("unitPrice").GetDecimal());
+        Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/convert-to-sale", token, conversion)).StatusCode);
+        Assert.Equal(8m, await db.Inventories.AsNoTracking().Where(x => x.ProductId == productId).Select(x => x.Quantity).SingleAsync());
+        Assert.Equal(2, await db.AccountsReceivable.CountAsync(x => x.SaleId == saleId));
+        Assert.Equal(17m, await db.AccountsReceivable.Where(x => x.SaleId == saleId).SumAsync(x => x.OriginalAmount));
+        Assert.False(await db.CashMovements.AnyAsync(x => x.SaleId == saleId));
+        using var final = await ReadJsonAsync(await AuthorizedGetAsync(client, path, token));
+        Assert.Equal("Converted", final.RootElement.GetProperty("status").GetString()); Assert.Equal(saleId, final.RootElement.GetProperty("saleId").GetGuid());
+        Assert.True(await db.AuditLogs.AnyAsync(x => x.EntityId == id.ToString() && x.Action == AuditAction.QuoteConverted));
+        await EnsureCashClosedAsync(client, token);
+    }
+
+    [SqlFact]
+    public async Task QuotesValidateReferencesStatusFiltersAndPdf()
+    {
+        using var client = Client(); var admin = await LoginAsync(client, TenantA, AdminEmail); var token = admin.AccessToken;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow); var productId = await CreateProductAsync(client, token, "QPDF");
+        using var customer = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/customers", token, new { name = "Cliente PDF", isActive = true }));
+        var customerId = customer.RootElement.GetProperty("id").GetGuid();
+        using var quote = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/quotes", token,
+            new { customerId, validUntil = today, discount = 0, items = new[] { new { productId, quantity = 1 } } }));
+        var id = quote.RootElement.GetProperty("id").GetGuid(); var path = $"/api/quotes/{id}";
+        var version = quote.RootElement.GetProperty("rowVersion").GetString();
+        Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/approve", token, new { rowVersion = version })).StatusCode);
+        using var sent = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/send", token, new { rowVersion = version }));
+        using var rejected = await ReadJsonAsync(await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/reject", token,
+            new { rowVersion = sent.RootElement.GetProperty("rowVersion").GetString(), reason = "Cliente rejeitou" }));
+        Assert.Equal("Rejected", rejected.RootElement.GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.Conflict, (await AuthorizedJsonAsync(client, HttpMethod.Post, path + "/convert-to-sale", token,
+            new { rowVersion = rejected.RootElement.GetProperty("rowVersion").GetString(), paymentMethod = "Pix" })).StatusCode);
+        using var list = await ReadJsonAsync(await AuthorizedGetAsync(client, $"/api/quotes?customerId={customerId}&status=Rejected&from={today:yyyy-MM-dd}&through={today:yyyy-MM-dd}", token));
+        Assert.Equal(1, list.RootElement.GetProperty("total").GetInt32());
+        using var pdf = await AuthorizedGetAsync(client, path + "/pdf", token); Assert.Equal(HttpStatusCode.OK, pdf.StatusCode);
+        Assert.Equal("application/pdf", pdf.Content.Headers.ContentType?.MediaType);
+        var text = System.Text.Encoding.Latin1.GetString(await pdf.Content.ReadAsByteArrayAsync());
+        Assert.StartsWith("%PDF-1.4", text); Assert.Contains("Cliente PDF", text); Assert.Contains("ORC-", text); Assert.Contains("Empresa A CI", text);
+        await using var db = CreateTenantDb(TenantA); var product = await db.Products.SingleAsync(x => x.Id == productId); product.IsActive = false; await db.SaveChangesAsync();
+        Assert.Equal(HttpStatusCode.BadRequest, (await AuthorizedJsonAsync(client, HttpMethod.Post, "/api/quotes", token,
+            new { customerId, validUntil = today, discount = 0, items = new[] { new { productId, quantity = 1 } } })).StatusCode);
+        using var summary = await ReadJsonAsync(await AuthorizedGetAsync(client, "/api/quotes/summary", token));
+        Assert.True(summary.RootElement.GetProperty("count").GetInt32() > 0);
+    }
+
+    [SqlFact]
+    public async Task StocktakeLifecycleIsAtomicAndConcurrentCompletionCannotDuplicateAdjustments()
+    {
+        using var client=Client();var admin=await LoginAsync(client,TenantA,AdminEmail);var token=admin.AccessToken;
+        var a=await CreateProductAsync(client,token,"COUNT-A");var b=await CreateProductAsync(client,token,"COUNT-B");
+        await StockEntryAsync(client,token,a,10);await StockEntryAsync(client,token,b,5);
+        using var created=await ReadJsonAsync(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/inventories",token,new { productIds=new[]{a,b},notes="Contagem SQL" }));
+        var id=created.RootElement.GetProperty("id").GetGuid();var path=$"/api/inventories/{id}";var version=created.RootElement.GetProperty("rowVersion").GetString();
+        await using var db=CreateTenantDb(TenantA);
+        var before=await db.InventoryMovements.CountAsync(x=>x.ProductId==a||x.ProductId==b);
+        var beforeSales=await db.Sales.CountAsync();var beforeReceivables=await db.AccountsReceivable.CountAsync();
+        Assert.Equal(2,before);
+        using var started=await ReadJsonAsync(await AuthorizedJsonAsync(client,HttpMethod.Post,path+"/start",token,new { rowVersion=version }));
+        version=started.RootElement.GetProperty("rowVersion").GetString();
+        Assert.Equal(HttpStatusCode.Conflict,(await AuthorizedJsonAsync(client,HttpMethod.Post,path+"/complete",token,new { rowVersion=version })).StatusCode);
+        using var counted=await ReadJsonAsync(await AuthorizedJsonAsync(client,HttpMethod.Post,path+"/count",token,new { rowVersion=version,items=new[]{new{productId=a,quantity=8,notes="Falta"},new{productId=b,quantity=8,notes="Sobra"}} }));
+        version=counted.RootElement.GetProperty("rowVersion").GetString();
+        Assert.Equal(before,await db.InventoryMovements.CountAsync(x=>x.ProductId==a||x.ProductId==b));
+        Assert.Equal(HttpStatusCode.Conflict,(await AuthorizedJsonAsync(client,HttpMethod.Post,path+"/start",token,new { rowVersion=version })).StatusCode);
+        // A movement after counting blocks the whole finalization; product A is not partially adjusted.
+        await StockEntryAsync(client,token,b,1);
+        Assert.Equal(HttpStatusCode.Conflict,(await AuthorizedJsonAsync(client,HttpMethod.Post,path+"/complete",token,new { rowVersion=version })).StatusCode);
+        Assert.Equal(10,await db.Inventories.Where(x=>x.ProductId==a).Select(x=>x.Quantity).SingleAsync());
+        Assert.Equal(6,await db.Inventories.Where(x=>x.ProductId==b).Select(x=>x.Quantity).SingleAsync());
+        Assert.Equal(StocktakeStatus.Counting,await db.Stocktakes.Where(x=>x.Id==id).Select(x=>x.Status).SingleAsync());
+        using var recounted=await ReadJsonAsync(await AuthorizedJsonAsync(client,HttpMethod.Post,path+"/count",token,new { rowVersion=version,items=new[]{new{productId=b,quantity=8,notes="Recontado após entrada"}} }));
+        version=recounted.RootElement.GetProperty("rowVersion").GetString();
+        var results=await Task.WhenAll(AuthorizedJsonAsync(client,HttpMethod.Post,path+"/complete",token,new {rowVersion=version}),AuthorizedJsonAsync(client,HttpMethod.Post,path+"/complete",token,new {rowVersion=version}));
+        Assert.Single(results,x=>x.StatusCode==HttpStatusCode.OK);Assert.Single(results,x=>x.StatusCode==HttpStatusCode.Conflict);
+        Assert.Equal(8,await db.Inventories.Where(x=>x.ProductId==a).Select(x=>x.Quantity).SingleAsync());
+        Assert.Equal(8,await db.Inventories.Where(x=>x.ProductId==b).Select(x=>x.Quantity).SingleAsync());
+        var adjustments=await db.InventoryMovements.Where(x=>x.ReferenceType=="Stocktake"&&x.ReferenceId==id.ToString()).ToListAsync();
+        Assert.Equal(2,adjustments.Count);Assert.All(adjustments,x=>Assert.Equal("Inventory",x.ReasonCode));
+        Assert.Equal(beforeSales,await db.Sales.CountAsync());Assert.Equal(beforeReceivables,await db.AccountsReceivable.CountAsync());
+        Assert.Equal(HttpStatusCode.Conflict,(await AuthorizedJsonAsync(client,HttpMethod.Put,path,token,new{productIds=new[]{a},notes="Imutável",rowVersion=version})).StatusCode);
+        Assert.True(await db.AuditLogs.AnyAsync(x=>x.EntityId==id.ToString()&&x.Action==AuditAction.StocktakeCompleted));
+        using var history=await ReadJsonAsync(await AuthorizedGetAsync(client,$"/api/stock/movements?productId={a}&origin=Stocktake",token));
+        Assert.Equal(1,history.RootElement.GetProperty("total").GetInt32());Assert.StartsWith("INV-",history.RootElement.GetProperty("items")[0].GetProperty("referenceNumber").GetString());
+    }
+
+    [SqlFact]
+    public async Task StocktakesValidateTenantPermissionsReferencesVersionsAndCancellation()
+    {
+        using var client=Client();var admin=await LoginAsync(client,TenantA,AdminEmail);var token=admin.AccessToken;
+        var product=await CreateProductAsync(client,token,"COUNT-SEC");
+        using var created=await ReadJsonAsync(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/inventories",token,new{productIds=new[]{product},notes="Isolado"}));
+        var id=created.RootElement.GetProperty("id").GetGuid();var version=created.RootElement.GetProperty("rowVersion").GetString();var path=$"/api/inventories/{id}";
+        var other=await LoginAsync(client,TenantB,AdminEmail);
+        Assert.Equal(HttpStatusCode.NotFound,(await AuthorizedGetAsync(client,path,other.AccessToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,(await AuthorizedGetAsync(client,$"/api/inventory/{product}",other.AccessToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/inventories",other.AccessToken,new{productIds=new[]{product}})).StatusCode);
+        using var foreignReport=await ReadJsonAsync(await AuthorizedGetAsync(client,$"/api/stock/movements?productId={product}",other.AccessToken));Assert.Equal(0,foreignReport.RootElement.GetProperty("total").GetInt32());
+        var viewer=await LoginAsync(client,TenantA,ViewerEmail);
+        Assert.Equal(HttpStatusCode.Forbidden,(await AuthorizedGetAsync(client,path,viewer.AccessToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/stock/adjustments",viewer.AccessToken,new{})).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,(await AuthorizedGetAsync(client,"/api/stock/reports/low-stock",viewer.AccessToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,(await AuthorizedJsonAsync(client,HttpMethod.Put,path,token,new{productIds=new[]{product},rowVersion="invalid"})).StatusCode);
+        using var edited=await ReadJsonAsync(await AuthorizedJsonAsync(client,HttpMethod.Put,path,token,new{productIds=new[]{product},notes="Editado",rowVersion=version}));
+        Assert.Equal(HttpStatusCode.Conflict,(await AuthorizedJsonAsync(client,HttpMethod.Post,path+"/start",token,new{rowVersion=version})).StatusCode);
+        version=edited.RootElement.GetProperty("rowVersion").GetString();
+        Assert.Equal(HttpStatusCode.BadRequest,(await AuthorizedJsonAsync(client,HttpMethod.Post,path+"/cancel",token,new{rowVersion=version})).StatusCode);
+        using var cancelled=await ReadJsonAsync(await AuthorizedJsonAsync(client,HttpMethod.Post,path+"/cancel",token,new{rowVersion=version,reason="Planejamento revisto"}));
+        Assert.Equal("Cancelled",cancelled.RootElement.GetProperty("status").GetString());
+        using var list=await ReadJsonAsync(await AuthorizedGetAsync(client,$"/api/inventories?search={created.RootElement.GetProperty("number").GetString()}&status=Cancelled",token));Assert.Equal(1,list.RootElement.GetProperty("total").GetInt32());
+    }
+
+    [SqlFact]
+    public async Task ManualAdjustmentsReportsAndIndicatorsUseCurrentStockWithoutInventingFinancialCosts()
+    {
+        using var client=Client();var admin=await LoginAsync(client,TenantA,AdminEmail);var token=admin.AccessToken;
+        var product=await CreateProductAsync(client,token,"COUNT-REPORT");await using var db=CreateTenantDb(TenantA);
+        var p=await db.Products.SingleAsync(x=>x.Id==product);p.CreatedAt=DateTimeOffset.UtcNow.AddDays(-100);await db.SaveChangesAsync();
+        using var initial=await ReadJsonAsync(await AuthorizedGetAsync(client,$"/api/inventory/{product}",token));
+        var version=initial.RootElement.GetProperty("rowVersion").GetString();
+        using var unused=await ReadJsonAsync(await AuthorizedGetAsync(client,"/api/stock/reports/no-movement?days=30",token));Assert.Contains(unused.RootElement.EnumerateArray(),x=>x.GetProperty("productId").GetGuid()==product);
+        using var adjusted=await ReadJsonAsync(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/stock/adjustments",token,new{productId=product,type="PositiveAdjustment",quantity=1,reason="Correction",observation="Saldo físico",rowVersion=version}));
+        Assert.Equal(1,adjusted.RootElement.GetProperty("inventory").GetProperty("quantity").GetDecimal());
+        Assert.Equal("Correction",adjusted.RootElement.GetProperty("movement").GetProperty("reasonCode").GetString());
+        Assert.Equal(HttpStatusCode.Conflict,(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/stock/adjustments",token,new{productId=product,type="PositiveAdjustment",quantity=1,reason="Correction",rowVersion=version})).StatusCode);
+        version=adjusted.RootElement.GetProperty("inventory").GetProperty("rowVersion").GetString();
+        Assert.Equal(HttpStatusCode.BadRequest,(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/stock/adjustments",token,new{productId=product,type="NegativeAdjustment",quantity=2,reason="Loss",rowVersion=version})).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/stock/adjustments",token,new{productId=product,type="PositiveAdjustment",quantity=.0001m,reason="Correction",rowVersion=version})).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/stock/adjustments",token,new{productId=product,type="PositiveAdjustment",quantity=1,reason="Inventory",rowVersion=version})).StatusCode);
+        using var low=await ReadJsonAsync(await AuthorizedGetAsync(client,"/api/stock/reports/low-stock",token));
+        var row=low.RootElement.EnumerateArray().Single(x=>x.GetProperty("productId").GetGuid()==product);
+        Assert.Equal(1,row.GetProperty("suggestedReplacement").GetDecimal());Assert.Equal(4,row.GetProperty("estimatedValue").GetDecimal());
+        using var used=await ReadJsonAsync(await AuthorizedGetAsync(client,"/api/stock/reports/no-movement?days=30",token));Assert.DoesNotContain(used.RootElement.EnumerateArray(),x=>x.GetProperty("productId").GetGuid()==product);
+        Assert.Equal(HttpStatusCode.BadRequest,(await AuthorizedGetAsync(client,"/api/stock/reports/no-movement?days=12",token)).StatusCode);
+        using var overview=await ReadJsonAsync(await AuthorizedGetAsync(client,"/api/stock/overview",token));Assert.True(overview.RootElement.GetProperty("lowStock").GetInt32()>0);
+        using var exit=await ReadJsonAsync(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/stock/adjustments",token,new{productId=product,type="NegativeAdjustment",quantity=1,reason="Damage",rowVersion=version}));
+        Assert.Equal(0,exit.RootElement.GetProperty("inventory").GetProperty("quantity").GetDecimal());
+    }
+
+    private static async Task StockEntryAsync(HttpClient client,string token,Guid product,decimal quantity)
+    {
+        using var stock=await ReadJsonAsync(await AuthorizedGetAsync(client,$"/api/inventory/{product}",token));
+        var response=await AuthorizedJsonAsync(client,HttpMethod.Post,$"/api/inventory/{product}/movements",token,new{type="StockEntry",quantity,reason="Teste de inventário",rowVersion=stock.RootElement.GetProperty("rowVersion").GetString()});
+        Assert.Equal(HttpStatusCode.OK,response.StatusCode);
+    }
+
+    [SqlFact]
+    public async Task AdvancedInventoryMigrationUpgradesExistingAdministratorAndStockSchema()
+    {
+        var connection=new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(RequiredEnvironment("TenantDatabases__EmpresaA_CI")) { InitialCatalog="Forjix_Inventory_Upgrade_"+Guid.NewGuid().ToString("N") };
+        await using var db=new TenantDbContext(new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(connection.ConnectionString).Options);
+        await db.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20260926144839_AddQuotesV1");
+        var roleId=Guid.NewGuid();
+        db.Roles.Add(new Forjix.Domain.Entities.Identity.Role{Id=roleId,Name="Administrador",NormalizedName="ADMINISTRADOR",IsSystem=true,CreatedAt=DateTimeOffset.UtcNow,UpdatedAt=DateTimeOffset.UtcNow});
+        await db.SaveChangesAsync();await db.Database.MigrateAsync();
+        Assert.Equal(7,await db.RolePermissions.CountAsync(x=>x.RoleId==roleId));
+        Assert.All(await db.RolePermissions.Where(x=>x.RoleId==roleId).ToListAsync(),x=>Assert.True(x.GrantedAt.Year>=2026));
+        Assert.Empty(await db.Database.GetPendingMigrationsAsync());
+        Assert.Equal(0,await db.Stocktakes.CountAsync());
+    }
+
+    [SqlFact]
+    public async Task StockManageAloneCannotBypassManualAdjustmentPermissionThroughLegacyEndpoint()
+    {
+        using var client=Client();var admin=await LoginAsync(client,TenantA,AdminEmail);var token=admin.AccessToken;
+        var product=await CreateProductAsync(client,token,"COUNT-PERM");
+        using var role=await ReadJsonAsync(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/roles",token,new{name="Estoque limitado "+Guid.NewGuid().ToString("N"),description="Sem ajuste",permissions=StockOnlyPermissions}));
+        var email="stock-"+Guid.NewGuid().ToString("N")+"@teste.local";
+        var user=await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/users",token,new{name="Operador sem ajuste",email,password=Password(),isActive=true,roleIds=new[]{role.RootElement.GetProperty("id").GetGuid()}});
+        Assert.Equal(HttpStatusCode.Created,user.StatusCode);
+        var limited=await LoginAsync(client,TenantA,email);
+        using var stock=await ReadJsonAsync(await AuthorizedGetAsync(client,$"/api/inventory/{product}",limited.AccessToken));
+        var version=stock.RootElement.GetProperty("rowVersion").GetString();
+        Assert.Equal(HttpStatusCode.Forbidden,(await AuthorizedJsonAsync(client,HttpMethod.Post,$"/api/inventory/{product}/movements",limited.AccessToken,new{type="PositiveAdjustment",quantity=1,reason="Correção",rowVersion=version})).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/stock/adjustments",limited.AccessToken,new{productId=product,type="PositiveAdjustment",quantity=1,reason="Correction",rowVersion=version})).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,(await AuthorizedJsonAsync(client,HttpMethod.Post,$"/api/inventory/{product}/movements",token,new{type="Sale",quantity=1,rowVersion=version})).StatusCode);
+        await using var db=CreateTenantDb(TenantA);
+        var p=await db.Products.SingleAsync(x=>x.Id==product);
+        Assert.Equal(HttpStatusCode.BadRequest,(await AuthorizedJsonAsync(client,HttpMethod.Post,"/api/products",token,new{categoryId=p.CategoryId,name="Min inválido",sku="BAD-"+Guid.NewGuid().ToString("N"),salePrice=10,costPrice=4,minimumStock=.0001m,isActive=true})).StatusCode);
     }
 
     private static string Password() =>
